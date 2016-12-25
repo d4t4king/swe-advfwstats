@@ -121,7 +121,7 @@ print "</pre>\n";
 
 &closebox();
 
-&openbox("Global FW Statistics");
+&openbox($tr{'afws_global_fw_statistics'});
 
 print <<EOS;
 
@@ -138,9 +138,9 @@ print <<EOS;
 			<input type="submit" name="ACTION" id="btnSubmit" value="Update Period"></input>
 		</td> -->
 		<td style="width: 60%;">
-			<label id="lblGreenFromSources">Filter <span style="color: #00AA00; font-weight: bold;">GREEN</span> from sources:</label>
+			<label id="lblGreenFromSources">$tr{'afws_filter_green'}</label>
 			<input type="checkbox" name="cbxNoGreenSource" id="cbxNoGreenSource" $checked{'cbxNoGreenSource'}{'on'}></input>
-			<label id="lblRedFromDests">Filter <span style="color: #FF0000; font-weight: bold;">RED</span> from destinations:</label>
+			<label id="lblRedFromDests">$tr{'afws_filter_red'}</label>
 			<input type="checkbox" name="cbxNoRedDest" id="cbxNoRedDest" $checked{'cbxNoRedDest'}{'on'}></input>
 			<input type="submit" name="FILTER1" id="btnFilter1" value="Filter"></input>
 		</td>
@@ -154,7 +154,7 @@ print <<EOS;
 EOS
 
 my $line_cnt = 0;
-print $q->h3("Interfaces: ");
+print $q->h3($tr{'afws_interfaces'});
 print "\n\t\t<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $if ( sort { $iface_pkts{$b} <=> $iface_pkts{$a} } keys %iface_pkts ) {
 	if ($line_cnt % 2 == 0 ) {
@@ -167,7 +167,7 @@ foreach my $if ( sort { $iface_pkts{$b} <=> $iface_pkts{$a} } keys %iface_pkts )
 print "\t\t</table>\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3("Filters: ");
+print $q->h3($tr{'awfs_filters'});
 print "\n<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $f ( sort { $filters{$b} <=> $filters{$a} } keys %filters ) {
 	if ($line_cnt % 2 == 0) {
@@ -180,7 +180,7 @@ foreach my $f ( sort { $filters{$b} <=> $filters{$a} } keys %filters ) {
 print "</table>\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3("Sources: ");
+print $q->h3($tr{'awfs_sources'});
 print "\n<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $s ( sort { $sources{$b} <=> $sources{$a} } keys %sources ) {
 	if ($line_cnt % 2 == 0) {
@@ -200,7 +200,7 @@ foreach my $s ( sort { $sources{$b} <=> $sources{$a} } keys %sources ) {
 print "</table>\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3("Destinations: ");
+print $q->h3($tr{'awfs_destinations'});
 print "\n<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $d ( sort { $dests{$b} <=> $dests{$a} } keys %dests ) {
 	if ($line_cnt % 2 == 0 ) {
@@ -220,7 +220,7 @@ foreach my $d ( sort { $dests{$b} <=> $dests{$a} } keys %dests ) {
 print "</table\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3("Destination Ports: ");
+print $q->h3($tr{'awfs_dest_ports'});
 print "<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $dp ( sort { $dports{$b} <=> $dports{$a} } keys %dports ) {
 	if ($line_cnt % 2 == 0 ) {
