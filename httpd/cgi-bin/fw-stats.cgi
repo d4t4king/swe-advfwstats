@@ -167,7 +167,7 @@ foreach my $if ( sort { $iface_pkts{$b} <=> $iface_pkts{$a} } keys %iface_pkts )
 print "\t\t</table>\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3($tr{'awfs_filters'});
+print $q->h3($tr{'afws_filters'});
 print "\n<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $f ( sort { $filters{$b} <=> $filters{$a} } keys %filters ) {
 	if ($line_cnt % 2 == 0) {
@@ -180,7 +180,7 @@ foreach my $f ( sort { $filters{$b} <=> $filters{$a} } keys %filters ) {
 print "</table>\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3($tr{'awfs_sources'});
+print $q->h3($tr{'afws_sources'});
 print "\n<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $s ( sort { $sources{$b} <=> $sources{$a} } keys %sources ) {
 	if ($line_cnt % 2 == 0) {
@@ -200,7 +200,7 @@ foreach my $s ( sort { $sources{$b} <=> $sources{$a} } keys %sources ) {
 print "</table>\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3($tr{'awfs_destinations'});
+print $q->h3($tr{'afws_destinations'});
 print "\n<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $d ( sort { $dests{$b} <=> $dests{$a} } keys %dests ) {
 	if ($line_cnt % 2 == 0 ) {
@@ -220,7 +220,7 @@ foreach my $d ( sort { $dests{$b} <=> $dests{$a} } keys %dests ) {
 print "</table\n";
 print "<br /><br />\n";
 $line_cnt = 0;
-print $q->h3($tr{'awfs_dest_ports'});
+print $q->h3("$tr{'afws_dest_ports'}");
 print "<table class=\"centered\" style=\"width: 75%\">\n";
 foreach my $dp ( sort { $dports{$b} <=> $dports{$a} } keys %dports ) {
 	if ($line_cnt % 2 == 0 ) {
