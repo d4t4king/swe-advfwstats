@@ -12,6 +12,9 @@ use Data::Dumper;
 use IO::Uncompress::Gunzip qw( gunzip $GunzipError );
 use Geo::IP::PurePerl;
 
+use lib ".";
+use SQL::Utils;
+
 my ($dbfile, $depth, $help, $onetime, $verbose);
 our ($crontab);
 
@@ -54,82 +57,74 @@ if ($verbose) { print "Checking GeoIP database....\n"; }
 #
 ### Initialize Database Tables (if not exist)
 #
-if ($verbose) { print "Setting up the tables in the database file ($dbfile)....\n"; }
-my $db = DBI->connect("dbi:SQLite:$dbfile", "", "") or die "Can't connect to database: $DBI::errstr";
-
+my @create_tables_sql = [
 # countries (lookup table)
-my $sth = $db->prepare("CREATE TABLE IF NOT EXISTS countries (id INTEGER PRIMARY KEY AUTOINCREMENT, cc TEXT, cc3 TEXT, name text)") or die "Can't prepare statement: $DBI::errstr";
-my $rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-print STDERR "RTV: $rtv\n";
+	"CREATE TABLE IF NOT EXISTS countries (id INTEGER PRIMARY KEY AUTOINCREMENT, cc TEXT, cc3 TEXT, name text)",
 # interfaces
-$sth = $db->prepare("CREATE TABLE IF NOT EXISTS ifaces (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, datetime INTEGER, hitcount INTEGER);") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-print STDERR "RTV: $rtv\n";
+	"CREATE TABLE IF NOT EXISTS ifaces (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, datetime INTEGER, hitcount INTEGER);",
 # filters
-$sth = $db->prepare("CREATE TABLE IF NOT EXISTS filters (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, datetime INTEGER, hitcount INTEGER);") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-print STDERR "RTV: $rtv\n";
+	"CREATE TABLE IF NOT EXISTS filters (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, datetime INTEGER, hitcount INTEGER);",
 # sources
-$sth = $db->prepare("CREATE TABLE IF NOT EXISTS sources (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_addr TEXT, name TEXT, country_id INTEGER, latitude FLOAT, longitude FLOAT, datetime DATETIME, hitcount INTEGER);") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-print STDERR "RTV: $rtv\n";
+	"CREATE TABLE IF NOT EXISTS sources (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_addr TEXT, name TEXT, country_id INTEGER, latitude FLOAT, longitude FLOAT, datetime DATETIME, hitcount INTEGER);",
 # destinations
-$sth = $db->prepare("CREATE TABLE IF NOT EXISTS destinations (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_addr TEXT, name TEXT, country_id INTEGER, latitude FLOAT, longitude FLOAT, datetime DATETIME, hitcount INTEGER);") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-print STDERR "RTV: $rtv\n";
+	"CREATE TABLE IF NOT EXISTS destinations (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_addr TEXT, name TEXT, country_id INTEGER, latitude FLOAT, longitude FLOAT, datetime DATETIME, hitcount INTEGER);",
 # destination ports
-$sth = $db->prepare("CREATE TABLE IF NOT EXISTS dest_ports (id INTEGER PRIMARY KEY AUTOINCREMENT, port_num INTEGER, protocol TEXT, datetime DATETIME, hitcount INTEGER)") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-print STDERR "RTV: $rtv\n";
-warn $DBI::errstr if $DBI::err;
+	"CREATE TABLE IF NOT EXISTS dest_ports (id INTEGER PRIMARY KEY AUTOINCREMENT, port_num INTEGER, protocol TEXT, datetime DATETIME, hitcount INTEGER)"
+];
+
+if ($verbose) { print "Setting up the tables in the database file ($dbfile)....\n"; }
+my $sql_utils_obj = SQL::Utils->new('sqlite3', {'db_filename' => $dbfile});
+foreach my $sql ( @create_tables_sql ) {
+	my $rtv = $sql_utils_obj->execute_non_query($sql);
+	print STDERR "RTV: $rtv\n" if ($verbose);
+}
 
 #
 ### Grab data from tables (if exist)
 #
 if ($verbose) { print "Loading existing database data (filters)....\n"; }
 my (%db_countries_cc, %db_countries_name, %db_filters, %db_ifaces, %db_sources, %db_dests, %db_dports);
-$sth = $db->prepare("SELECT id,cc,name FROM countries") or die "Can't preapre statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-while (my @row = $sth->fetchrow_array()) {
-	$db_countries_cc{$row[1]} = $row[0];
-	$db_countries_name{$row[2]} = $row[0];
+my $sql = "SELECT id,cc,name FROM countries";
+my $results = $sql_utils_obj->execute_single_row_query($sql);
+foreach my $result ( %{$results} ) {
+	$db_countries_cc{$results->{'cc'}} = $results->{'id'};
+	$db_countries_name{$results->{'name'}} = $results->{'id'};;
 }
+
+print Dumper(\%db_countries_cc);
+exit 1;
+
+### FIXME
+my ($db, $sth, $rtv);
 # interfaces
-$sth = $db->prepare("SELECT name,datetime,hitcount FROM ifaces") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+$sql = "SELECT name,datetime,hitcount FROM ifaces";
 while (my @row = $sth->fetchrow_array()) {
 	$db_ifaces{$row[0]}{$row[1]} = $row[2];
 }
 # filters
-$sth = $db->prepare("SELECT name,datetime,hitcount FROM filters") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+$sql = "SELECT name,datetime,hitcount FROM filters";
 print STDERR "RTV: $rtv\n";
 while (my @row = $sth->fetchrow_array()) {
 	$db_filters{$row[0]}{$row[1]} = $row[2];
 }
 # sources
-$sth = $db->prepare("SELECT ip_addr,datetime,hitcount FROM sources") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+$sql = "SELECT ip_addr,datetime,hitcount FROM sources";
 print STDERR "RTV: $rtv\n";
 while (my @row = $sth->fetchrow_array()) {
 	$db_sources{$row[0]}{$row[1]} = $row[2];
 }
 # destinations
-$sth = $db->prepare("SELECT ip_addr,datetime,hitcount FROM destinations") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+$sql = "SELECT ip_addr,datetime,hitcount FROM destinations";
 print STDERR "RTV: $rtv\n";
 while (my @row = $sth->fetchrow_array()) {
 	$db_dests{$row[0]}{$row[1]} = $row[2];
 }
 # dest_ports
-$sth = $db->prepare("SELECT port_num, datetime, hitcount FROM dest_ports") or die "Can't prepare statement: $DBI::errstr";
-$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+$sql = "SELECT port_num, datetime, hitcount FROM dest_ports";
 print STDERR "RTV: $rtv\n";
 while (my @row = $sth->fetchrow_array()) {
 	$db_dports{$row[0]}{$row[1]} = $row[2];
 }
-warn $DBI::errstr if $DBI::err;
-$sth->finish() or die "There was a problem cleaning up the statement handle: $DBI::errstr";
 
 #
 ### Parse the log file(s) for the relevant data to insert
