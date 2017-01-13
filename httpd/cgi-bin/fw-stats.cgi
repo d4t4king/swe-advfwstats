@@ -48,7 +48,7 @@ my (%filters, %iface_pkts, %sources, %dests, %dports);
 my $now = time();
 
 # interfaces
-$db = DBI->connect("dbi:SQLite:/tmp/test-stats.db", "", "");
+$db = DBI->connect("dbi:SQLite:/var/smoothwall/mods/adv_fw_stats/var/db/fwstats.db", "", "");
 $sth = $db->prepare("SELECT name,SUM(hitcount) FROM ifaces GROUP BY name ORDER BY SUM(hitcount) DESC") or die "can't execute statement: $DBI::errstr";
 $rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
 while (my @row = $sth->fetchrow_array()) {
