@@ -12,7 +12,7 @@ use Data::Dumper;
 use IO::Uncompress::Gunzip qw( gunzip $GunzipError );
 use Geo::IP::PurePerl;
 
-use lib ".";
+use lib "usr/lib/perl5/site_perl/5.14.4/";
 use SQL::Utils;
 
 my ($dbfile, $depth, $help, $onetime, $verbose);
@@ -57,24 +57,19 @@ if ($verbose) { print "Checking GeoIP database....\n"; }
 #
 ### Initialize Database Tables (if not exist)
 #
-my @create_tables_sql = [
-# countries (lookup table)
+my @create_tables_sql = (
 	"CREATE TABLE IF NOT EXISTS countries (id INTEGER PRIMARY KEY AUTOINCREMENT, cc TEXT, cc3 TEXT, name text)",
-# interfaces
 	"CREATE TABLE IF NOT EXISTS ifaces (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, datetime INTEGER, hitcount INTEGER);",
-# filters
 	"CREATE TABLE IF NOT EXISTS filters (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, datetime INTEGER, hitcount INTEGER);",
-# sources
 	"CREATE TABLE IF NOT EXISTS sources (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_addr TEXT, name TEXT, country_id INTEGER, latitude FLOAT, longitude FLOAT, datetime DATETIME, hitcount INTEGER);",
-# destinations
 	"CREATE TABLE IF NOT EXISTS destinations (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_addr TEXT, name TEXT, country_id INTEGER, latitude FLOAT, longitude FLOAT, datetime DATETIME, hitcount INTEGER);",
-# destination ports
 	"CREATE TABLE IF NOT EXISTS dest_ports (id INTEGER PRIMARY KEY AUTOINCREMENT, port_num INTEGER, protocol TEXT, datetime DATETIME, hitcount INTEGER)"
-];
+);
 
 if ($verbose) { print "Setting up the tables in the database file ($dbfile)....\n"; }
 my $sql_utils_obj = SQL::Utils->new('sqlite3', {'db_filename' => $dbfile});
 foreach my $sql ( @create_tables_sql ) {
+	#print "$sql\n";
 	my $rtv = $sql_utils_obj->execute_non_query($sql);
 	print STDERR "RTV: $rtv\n" if ($verbose);
 }
@@ -85,45 +80,41 @@ foreach my $sql ( @create_tables_sql ) {
 if ($verbose) { print "Loading existing database data (filters)....\n"; }
 my (%db_countries_cc, %db_countries_name, %db_filters, %db_ifaces, %db_sources, %db_dests, %db_dports);
 my $sql = "SELECT id,cc,name FROM countries";
-my $results = $sql_utils_obj->execute_single_row_query($sql);
-foreach my $result ( %{$results} ) {
-	$db_countries_cc{$results->{'cc'}} = $results->{'id'};
-	$db_countries_name{$results->{'name'}} = $results->{'id'};;
+my $results = $sql_utils_obj->execute_multi_row_query($sql);
+foreach my $result ( @{$results} ) {
+	$db_countries_cc{$result->{'cc'}} = $result->{'id'};
+	$db_countries_name{$result->{'name'}} = $result->{'id'};
 }
 
-print Dumper(\%db_countries_cc);
-exit 1;
-
-### FIXME
-my ($db, $sth, $rtv);
 # interfaces
 $sql = "SELECT name,datetime,hitcount FROM ifaces";
-while (my @row = $sth->fetchrow_array()) {
-	$db_ifaces{$row[0]}{$row[1]} = $row[2];
+$results = $sql_utils_obj->execute_multi_row_query($sql);
+foreach my $result ( @{$results} ) {
+	$db_ifaces{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
 }
 # filters
 $sql = "SELECT name,datetime,hitcount FROM filters";
-print STDERR "RTV: $rtv\n";
-while (my @row = $sth->fetchrow_array()) {
-	$db_filters{$row[0]}{$row[1]} = $row[2];
+$results = $sql_utils_obj->execute_multi_row_query($sql);
+foreach my $result ( @{$results} ) {
+	$db_filters{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
 }
 # sources
 $sql = "SELECT ip_addr,datetime,hitcount FROM sources";
-print STDERR "RTV: $rtv\n";
-while (my @row = $sth->fetchrow_array()) {
-	$db_sources{$row[0]}{$row[1]} = $row[2];
+$results = $sql_utils_obj->execute_multi_row_query($sql);
+foreach my $result ( @{$results} ) {
+	$db_sources{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
 }
 # destinations
 $sql = "SELECT ip_addr,datetime,hitcount FROM destinations";
-print STDERR "RTV: $rtv\n";
-while (my @row = $sth->fetchrow_array()) {
-	$db_dests{$row[0]}{$row[1]} = $row[2];
+$results = $sql_utils_obj->execute_multi_row_query($sql);
+foreach my $result ( @{$results} ) {
+	$db_dests{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
 }
 # dest_ports
 $sql = "SELECT port_num, datetime, hitcount FROM dest_ports";
-print STDERR "RTV: $rtv\n";
-while (my @row = $sth->fetchrow_array()) {
-	$db_dports{$row[0]}{$row[1]} = $row[2];
+$results = $sql_utils_obj->execute_multi_row_query($sql);
+foreach my $result ( @{$results} ) {
+	$db_dports{$result->{'port_num'}}{$result->{'datetime'}} = $result->{'hitcount'};
 }
 
 #
@@ -208,76 +199,68 @@ if ($onetime) {
 ### Add the "new" stuff to the database.
 #
 # interfaces
+print "Inserting iface data....\n" if ($verbose);
 foreach my $iface ( sort keys %iface_pkts ) {
 	foreach my $if_date ( sort keys %{$iface_pkts{$iface}} ) {
-		$sth = $db->prepare("INSERT INTO ifaces (name,datetime,hitcount) VALUES ('$iface', '$if_date', '$iface_pkts{$iface}{$if_date}')") or die "Can't prepare staement: $DBI::errstr";
-		$sth->execute() or die "Can't execute statement: $DBI::errstr";
+		$sql_utils_obj->execute_non_query("INSERT INTO ifaces (name,datetime,hitcount) VALUES ('$iface', '$if_date', '$iface_pkts{$iface}{$if_date}')");
 	}
 }
 # filters
+print "Inserting filters data....\n" if ($verbose);
 foreach my $filter ( sort keys %filters ) {
 	foreach my $f_date ( sort keys %{$filters{$filter}} ) {
-		$sth = $db->prepare("INSERT INTO filters (name,datetime,hitcount) VALUES ('$filter', '$f_date', '$filters{$filter}{$f_date}');") or die "Can't prepare statement: $DBI::errstr";
-		$sth->execute() or die "Can't execute statement: $DBI::errstr";
+		$sql_utils_obj->execute_non_query("INSERT INTO filters (name,datetime,hitcount) VALUES ('$filter', '$f_date', '$filters{$filter}{$f_date}');");
 	}
 }
 # get country data for IPs
 my $gip = Geo::IP::PurePerl->new('/usr/share/GeoIP/GeoLiteCity.dat', GEOIP_MEMORY_CACHE);
 
 # sources
+print "Inserting source data....\n" if ($verbose);
 foreach my $src ( sort keys %sources ) {
 	foreach my $src_date ( sort keys %{$sources{$src}} ) {
 		next if ($src eq '0.0.0.1');		# invalid IP
 		print STDERR "SRC: $src\n";
 		my $cc_ref = $gip->get_city_record_as_hash($src);
-		print STDERR Dumper($cc_ref);
+		print STDERR Dumper($cc_ref) if ($verbose);
 		if ($cc_ref->{'country_name'} =~ /'/) { $cc_ref->{'country_name'} =~ s/'/''/g; }
 		if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
-			$sth = $db->prepare("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')") or die "Can't prepare statement: $DBI::errstr";
-			$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
 			# "refresh" the lookup hashes with the added values
-			$sth = $db->prepare("SELECT id,cc,name FROM countries") or die "Can't prepare statement: $DBI::errstr";
-			$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-			while (my @row = $sth->fetchrow_array()) {
-				$db_countries_cc{$row[1]} = $row[0];
-				$db_countries_name{$row[2]} = $row[0];
+			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
+			foreach my $result ( @{$results} ) {
+				$db_countries_cc{$results->{'cc'}} = $result->{'id'};
+				$db_countries_name{$result->{'name'}} = $result->{'id'};
 			}
 		}
-		$sth = $db->prepare("INSERT INTO sources (ip_addr,datetime,hitcount) VALUES ('$src', '$src_date', '$sources{$src}{$src_date}');") or die "Can't prepare statement: $DBI::errstr";
-		$sth->execute() or die "Can't execute statement: $DBI::errstr";
+		$sql_utils_obj->execute_non_query("INSERT INTO sources (ip_addr,datetime,hitcount) VALUES ('$src', '$src_date', '$sources{$src}{$src_date}');");
 	}
 }
 # destinations
+print "Inserting destination data....\n" if ($verbose);
 foreach my $dst ( sort keys %dests ) {
 	foreach my $dst_date ( sort keys %{$dests{$dst}} ) {
 		my $cc_ref = $gip->get_city_record_as_hash($dst);
-		print STDERR Dumper($cc_ref);
+		print STDERR Dumper($cc_ref) if ($verbose);	
 		if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
-			$sth = $db->prepare("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')") or die "Can't prepare statement: $DBI::errstr";
-			$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
 			# "refresh" the lookup hashes with the added values
-			$sth = $db->prepare("SELECT id,cc,name FROM countries") or die "Can't prepare statement: $DBI::errstr";
-			$rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
-			while (my @row = $sth->fetchrow_array()) {
-				$db_countries_cc{$row[1]} = $row[0];
-				$db_countries_name{$row[2]} = $row[0];
+			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
+			foreach my $result ( @{$results} ) {
+				$db_countries_cc{$result->{'cc'}} = $result->{'id'};
+				$db_countries_name{$result->{'name'}} = $result->{'id'};
 			}
 		}
-		$sth = $db->prepare("INSERT INTO destinations (ip_addr,datetime,hitcount) VALUES ('$dst', '$dst_date', '$dests{$dst}{$dst_date}');") or die "Can't prepare statement: $DBI::errstr";
-		$sth->execute() or die "Can't execute statement: $DBI::errstr";
+		$sql_utils_obj->execute_non_query("INSERT INTO destinations (ip_addr,datetime,hitcount) VALUES ('$dst', '$dst_date', '$dests{$dst}{$dst_date}');");
 	}
 }
 # dest ports
+print "Inserting destination port data....\n" if ($verbose);
 foreach my $dport ( sort keys %dports ) {
 	foreach my $dpt_date ( sort keys %{$dports{$dport}} ) {
-		$sth = $db->prepare("INSERT INTO dest_ports (port_num, datetime, hitcount) VALUES ('$dport', '$dpt_date', '$dports{$dport}{$dpt_date}');") or die "Can't prepare statement: $DBI::errstr";
-		$sth->execute() or die "Can't execute statement: $DBI::errstr";
+		$sql_utils_obj->execute_non_query("INSERT INTO dest_ports (port_num, datetime, hitcount) VALUES ('$dport', '$dpt_date', '$dports{$dport}{$dpt_date}');");
 	}
 }
-warn $DBI::errstr if $DBI::err;
-$sth->finish() or die "There was a problem cleaning up the statement handle: $DBI::errstr";
-
-$db->disconnect() or die "There was a problem disconnecting from the database: $DBI::errstr";
 
 ###############################################################################
 sub Usage() {
