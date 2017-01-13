@@ -86,35 +86,38 @@ foreach my $result ( @{$results} ) {
 	$db_countries_name{$result->{'name'}} = $result->{'id'};
 }
 
-# interfaces
-$sql = "SELECT name,datetime,hitcount FROM ifaces";
-$results = $sql_utils_obj->execute_multi_row_query($sql);
-foreach my $result ( @{$results} ) {
-	$db_ifaces{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
-}
-# filters
-$sql = "SELECT name,datetime,hitcount FROM filters";
-$results = $sql_utils_obj->execute_multi_row_query($sql);
-foreach my $result ( @{$results} ) {
-	$db_filters{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
-}
-# sources
-$sql = "SELECT ip_addr,datetime,hitcount FROM sources";
-$results = $sql_utils_obj->execute_multi_row_query($sql);
-foreach my $result ( @{$results} ) {
-	$db_sources{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
-}
-# destinations
-$sql = "SELECT ip_addr,datetime,hitcount FROM destinations";
-$results = $sql_utils_obj->execute_multi_row_query($sql);
-foreach my $result ( @{$results} ) {
-	$db_dests{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
-}
-# dest_ports
-$sql = "SELECT port_num, datetime, hitcount FROM dest_ports";
-$results = $sql_utils_obj->execute_multi_row_query($sql);
-foreach my $result ( @{$results} ) {
-	$db_dports{$result->{'port_num'}}{$result->{'datetime'}} = $result->{'hitcount'};
+my %existing_data_sql = (
+	'ifaces'		=>	'SELECT name,datetime,hitcount FROM ifaces;',
+	'filters'		=>	'SELECT name,datetime,hitcount FROM filters;',
+	'sources'		=>	'SELECT ip_addr,datetime,hitcount FROM sources;',
+	'dests'			=>	'SELECT ip_addr,datetime,hitcount FROM destinations;',
+	'dest_ports'	=>	'SELECT port_num,datetime,hitcount FROM dest_ports;',
+);
+
+foreach my $tbl_key ( sort keys %existing_data_sql ) {
+	$results = $sql_utils_obj->execute_multi_row_query($existing_data_sql{$tbl_key});
+	foreach my $result ( @{$results} ) {
+		given ($tbl_key) {
+			when ('ifaces') {
+				$db_ifaces{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
+			}
+			when ('filters') {
+				$db_filters{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
+			}
+			when ('sources') {
+				$db_sources{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
+			}
+			when ('dests') {
+				$db_dests{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
+			}
+				when ('dest_ports') {
+			$db_dports{$result->{'port_num'}}{$result->{'datetime'}} = $result->{'hitcount'};
+			}
+			default { 
+				# we should never get here
+			}
+		}
+	}
 }
 
 #
@@ -137,7 +140,7 @@ if ($onetime) {
 				next unless ($line =~ /swe\s+kernel\:/);
 				my ($y, $m, $d, $h, $mm, $s, $mkt) = &extract_log_date($line);
 				if ($verbose) { print STDERR "($y $m $d, $h, $mm, $s, $mkt)\n"; }
-				if ($line =~ /IN=(.*?) /) { $iface_pkts{$1}{$mkt}++; }
+				if ($line =~ /IN=(.*?) /) { my $if = $1; $iface_pkts{$if}{$mkt}++; }
 				if ($line =~ /(\.\.FFC\.\.not\.GREEN\.subnet\.\.|Denied-by-\w+:.*? )/) {
 					my $f = $1;
 					next if ((!defined($f)) || ($f eq ''));
@@ -166,7 +169,7 @@ if ($onetime) {
 				next unless ($line =~ /swe\s+kernel\:/);
 				my ($y, $m, $d, $h, $mm, $s, $mkt) = &extract_log_date($line);
 				if ($verbose) { print STDERR "($y $m $d, $h, $mm, $s, $mkt)\n"; }
-				if ($line =~ /IN=(.*?) /) { $iface_pkts{$1}{$mkt}++; }
+				if ($line =~ /IN=(.*?) /) { my $iface = $1; $iface_pkts{$iface}{$mkt}++; }
 				if ($line =~ /(\.\.FFC\.\.not\.GREEN\.subnet\.\.|Denied-by-\w+:.*? )/) {
 					my $f = $1;
 					next if ((!defined($f)) || ($f eq ''));
@@ -201,9 +204,13 @@ if ($onetime) {
 # interfaces
 print "Inserting iface data....\n" if ($verbose);
 foreach my $iface ( sort keys %iface_pkts ) {
-	foreach my $if_date ( sort keys %{$iface_pkts{$iface}} ) {
-		$sql_utils_obj->execute_non_query("INSERT INTO ifaces (name,datetime,hitcount) VALUES ('$iface', '$if_date', '$iface_pkts{$iface}{$if_date}')");
-	}
+	chomp($iface);
+	$iface =~ s/^\s+|\s+$//g ;
+	if ($iface =~ /^eth[0-3]$/) {
+		foreach my $if_date ( sort keys %{$iface_pkts{$iface}} ) {
+			$sql_utils_obj->execute_non_query("INSERT INTO ifaces (name,datetime,hitcount) VALUES ('$iface', '$if_date', '$iface_pkts{$iface}{$if_date}')");
+		}
+	} else { warn yellow("Unrecognized interface name: $iface "); }
 }
 # filters
 print "Inserting filters data....\n" if ($verbose);
@@ -221,16 +228,19 @@ foreach my $src ( sort keys %sources ) {
 	foreach my $src_date ( sort keys %{$sources{$src}} ) {
 		next if ($src eq '0.0.0.1');		# invalid IP
 		print STDERR "SRC: $src\n";
-		my $cc_ref = $gip->get_city_record_as_hash($src);
-		print STDERR Dumper($cc_ref) if ($verbose);
-		if ($cc_ref->{'country_name'} =~ /'/) { $cc_ref->{'country_name'} =~ s/'/''/g; }
-		if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
-			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
-			# "refresh" the lookup hashes with the added values
-			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
-			foreach my $result ( @{$results} ) {
-				$db_countries_cc{$results->{'cc'}} = $result->{'id'};
-				$db_countries_name{$result->{'name'}} = $result->{'id'};
+		my $cc_ref = "";
+		if (! is_rfc1918($src)) {
+			my $cc_ref = $gip->get_city_record_as_hash($src);
+			print STDERR Dumper($cc_ref) if ($verbose);
+			if ($cc_ref->{'country_name'} =~ /'/) { $cc_ref->{'country_name'} =~ s/'/''/g; }
+			if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
+				$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
+				# "refresh" the lookup hashes with the added values
+				$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
+				foreach my $result ( @{$results} ) {
+					$db_countries_cc{$results->{'cc'}} = $result->{'id'};
+					$db_countries_name{$result->{'name'}} = $result->{'id'};
+				}
 			}
 		}
 		$sql_utils_obj->execute_non_query("INSERT INTO sources (ip_addr,datetime,hitcount) VALUES ('$src', '$src_date', '$sources{$src}{$src_date}');");
@@ -240,15 +250,17 @@ foreach my $src ( sort keys %sources ) {
 print "Inserting destination data....\n" if ($verbose);
 foreach my $dst ( sort keys %dests ) {
 	foreach my $dst_date ( sort keys %{$dests{$dst}} ) {
-		my $cc_ref = $gip->get_city_record_as_hash($dst);
-		print STDERR Dumper($cc_ref) if ($verbose);	
-		if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
-			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
-			# "refresh" the lookup hashes with the added values
-			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
-			foreach my $result ( @{$results} ) {
-				$db_countries_cc{$result->{'cc'}} = $result->{'id'};
-				$db_countries_name{$result->{'name'}} = $result->{'id'};
+		if (! is_rfc1918($dst)) {
+			my $cc_ref = $gip->get_city_record_as_hash($dst);
+			print STDERR Dumper($cc_ref) if ($verbose);	
+			if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
+				$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
+				# "refresh" the lookup hashes with the added values
+				$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
+				foreach my $result ( @{$results} ) {
+					$db_countries_cc{$result->{'cc'}} = $result->{'id'};
+					$db_countries_name{$result->{'name'}} = $result->{'id'};
+				}
 			}
 		}
 		$sql_utils_obj->execute_non_query("INSERT INTO destinations (ip_addr,datetime,hitcount) VALUES ('$dst', '$dst_date', '$dests{$dst}{$dst_date}');");
@@ -289,12 +301,22 @@ sub extract_log_date() {
 		my ($h, $mm, $s) = split(/\:/, $time);
 		my $mnum = &mon2num($m);
 		my $gmt = gmtime();
+		# if it matched the regex above, but the month
+		# is greater than the current month, then it actually
+		# was logged last year
 		my $y = This_Year($gmt);
+		my ($cY,$cM,$cD) = Today($gmt);
+		#warn yellow("$cY $cM $cD");
+		#warn yellow("$cM <=> $mnum");
+		if ($mnum > $cM) {
+			($y,$mnum,$d) = Add_Delta_YM($y,$mnum,$d,-1,0);
+		}
 		my $mktime = Mktime($y, $mnum, $d, $h, $mm, $s);
 
 		return ($y, $mnum, $d, $h, $mm, $s, $mktime);
 	} else {
-		warn "extract_log_date(): Received invalid or unrecognizeable log line (with date??)\n";
+		warn red("extract_log_date(): Received invalid or unrecognizeable log line (with date??)\n");
+		warn red($line);
 		return -1;
 	}
 }
@@ -381,6 +403,18 @@ sub parse_datetime($) {
 	my ($h, $mm, $s) = split(/:/, $time);
 
 	return ($y, $m, $d, $h, $mm, $s);
+}
+
+sub is_rfc1918 {
+	use Net::IPv4Addr qw( ipv4_in_network );
+	my $ip = shift;
+	return undef unless ($ip =~ /(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/);
+	given ($ip) {
+		when (ipv4_in_network("10.0.0.0/8", $ip))		{ return 1; }	#true
+		when (ipv4_in_network("172.16.0.0/12", $ip))	{ return 1; }	#true
+		when (ipv4_in_network("192.168.0.0/16", $ip))	{ return 1; }	#true
+		default 										{ return 0; }	#false
+	}
 }
 
 sub red {
