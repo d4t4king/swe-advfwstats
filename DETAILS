@@ -2,7 +2,7 @@ MOD_NAME=adv_fw_stats
 MOD_DIR=/var/smoothwal/mods/${MOD_NAME}
 MOD_VERSION=0.0.1
 MOD_INFO="This mod summarizes statistics about blocked packets."
-MOD_LONG_NAME="[3.1] Advanced FIrewall Statistics"
+MOD_LONG_NAME="[3.1] Advanced FIrewall Statistics v${MOD_VERSION}"
 MOD_AUTHOR=dataking
 MOD_MAINTAINER=dataking
-
+MOD_FORUM=https://community.smoothwall.org/forum/viewtopic.php?p=326363#p326363
