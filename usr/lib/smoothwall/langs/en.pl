@@ -4,7 +4,7 @@
 	'advfwstats'		=>	'fw-stats.cgi',
 	'advfwgraphs'		=>	'fw-stat-graphs',
 	# For menu stuffs
-	'ssadvfwstats'		=>	'Firewall Statistics',
+	'ssadvfwstats'		=>	'adv fw stats`',
 	'ssadvfwgraphs'		=>	'Firewal Statistics Graphs',
 	# In page, for translation(s)
 	'afws_global_fw_statistics'		=>	'Global FW Statistics',
