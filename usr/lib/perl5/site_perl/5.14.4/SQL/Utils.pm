@@ -74,7 +74,7 @@ sub execute_non_query {
 	if ($self->{'rdbms'} eq 'sqlite3') {
 		$db = DBI->connect("dbi:$db_types{$self->{'rdbms'}}:$self->{'db_filename'}", "", "") or die "Can't connect to database: $DBI::errstr";
 	}
-	my $sth = $db->prepare($sql) or die "Can't prepare statement: $DBI::errstr";
+	my $sth = $db->prepare($sql) or die "Can't prepare statement: $DBI::errstr\nSQL: $sql";
 	my $rtv = $sth->execute or die "Can't execute statement: $DBI::errstr";
 	return $rtv;
 }

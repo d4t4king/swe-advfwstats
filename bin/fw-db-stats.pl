@@ -37,6 +37,14 @@ my %colors2html = (
 	'orange'	=>	'#FFA500',
 );
 
+my %known_filters = ( 
+	'Denied-by-filter:FORWARD' 		=>	1,
+	'Denied-by-filter:badtraffic'	=>	1,
+	'Denied-by-filter:outgoing'		=>	1,
+	'Denied-by-filter:tndrop'		=>	1,
+);
+my %unknown_filters;
+
 if ($help) { &Usage(); }
 
 if ($verbose) { print "Checking perl mods....\n"; }
@@ -126,6 +134,7 @@ foreach my $tbl_key ( sort keys %existing_data_sql ) {
 if ($verbose) { print "Loading data from logs into database (filters)....\n"; }
 my (%filters, %iface_pkts, %sources, %dests, %dports, %protos);
 my ($src, $dst, $dport, $proto);
+my @lines;
 if ($onetime) {
 	if ($verbose) { print "_onetime_ flag set.  Loading historical data...\n"; }
 	my @files = `/bin/ls -1 /var/log/messages*`;
@@ -136,66 +145,95 @@ if ($onetime) {
 			my $z = new IO::Uncompress::Gunzip $file
 				or die "gunzip failed $GunzipError\n";
 			while (my $line = $z->getline()) {
-				chomp($line);
 				next unless ($line =~ /swe\s+kernel\:/);
-				my ($y, $m, $d, $h, $mm, $s, $mkt) = &extract_log_date($line);
-				if ($verbose) { print STDERR "($y $m $d, $h, $mm, $s, $mkt)\n"; }
-				if ($line =~ /IN=(.*?) /) { my $if = $1; $iface_pkts{$if}{$mkt}++; }
-				if ($line =~ /(\.\.FFC\.\.not\.GREEN\.subnet\.\.|Denied-by-\w+:.*? )/) {
-					my $f = $1;
-					next if ((!defined($f)) || ($f eq ''));
-					$filters{$f}{$mkt}++;
-				}
-				if ($line =~ /SRC=(.*?) /) { 
-					$src = $1; 
-					next if (exists($db_sources{$src}{$mkt}));
-					$sources{$src}{$mkt}++; 
-				}
-				if ($line =~ /DST=(.*?) /) { 
-					$dst = $1; 
-					next if (exists($db_dests{$dst}{$mkt}));
-					$dests{$dst}{$mkt}++; 
-				}
-				if ($line =~ /DPT=(.*?) /) { 
-					$dport = $1; 
-					next if (exists($db_dports{$dport}{$mkt}));
-					$dports{$dport}{$mkt}++; 
-				}
+				chomp($line);
+				push @lines, $line;
 			}
+			$z->close;
 		} else {
-			open LOG, $file or die "Can't open log file ($file) for reading: $! \n";
+			if ($file =~ /\//) {
+				use File::Basename;
+				$file = basename($file);
+			}
+			system("/bin/cp /var/log/$file /tmp/$file.$$");
+			open LOG, "/tmp/$file.$$" or die "Can't open log file (/tmp/$file.$$) for reading: $! \n";
 			while (my $line = <LOG>) {
 				chomp($line);
 				next unless ($line =~ /swe\s+kernel\:/);
-				my ($y, $m, $d, $h, $mm, $s, $mkt) = &extract_log_date($line);
-				if ($verbose) { print STDERR "($y $m $d, $h, $mm, $s, $mkt)\n"; }
-				if ($line =~ /IN=(.*?) /) { my $iface = $1; $iface_pkts{$iface}{$mkt}++; }
-				if ($line =~ /(\.\.FFC\.\.not\.GREEN\.subnet\.\.|Denied-by-\w+:.*? )/) {
-					my $f = $1;
-					next if ((!defined($f)) || ($f eq ''));
-					$filters{$f}{$mkt}++;
-				}
-				if ($line =~ /SRC=(.*?) /) { 
-					$src = $1; 
-					next if (exists($db_sources{$src}{$mkt}));
-					$sources{$src}{$mkt}++; 
-				}
-				if ($line =~ /DST=(.*?) /) { 
-					$dst = $1; 
-					next if (exists($db_dests{$dst}{$mkt}));
-					$dests{$dst}{$mkt}++; 
-				}
-				if ($line =~ /DPT=(.*?) /) { 
-					$dport = $1; 
-					next if (exists($db_dports{$dport}{$mkt}));
-					$dports{$dport}{$mkt}++; 
-				}
+				push @lines, $line;
 			}
+			close LOG or die "There was a problem closing the log file ($file): $! \n";
+			system("/bin/rm /tmp/$file.$$");
 		}
 	}
 } else {
 	if ($verbose) { print "Just loading the last 24 hours of log data (filters)....\n"; }
 	### FIX ME:  Add the code to add the last 24 hours.
+	warn "###FIX ME!!!  Previous 24-hour code still required!\n";
+	system("/bin/cp -f /var/log/messages /tmp/messages.$$");
+	my $str = `head -1 /tmp/messages.$$`;
+	chomp($str);
+	my ($fy,$fm,$fd,$fH,$fM,$fS,$fmkt) = &extract_log_date($str);
+	$str = `tail -1 /tmp/messages.$$`;
+	chomp($str);
+	my ($ly,$lm,$ld,$lH,$lM,$lS,$lmkt) = &extract_log_date($str);
+	print "$fy,$fm,$fd,$fH,$fM,$fS,$fmkt\n";
+	print "$ly,$lm,$ld,$lH,$lM,$lS,$lmkt\n";
+	my $target_mktime = $lmkt - 86400;
+	open LOG, "</tmp/messages.$$" or die red("Unable to open temp messages file for reading: $!");
+	while (my $line = <LOG>) {
+		chomp($line);
+		my ($sy,$sm,$sd,$sH,$sM,$sS,$smkt) = &extract_log_date($line);
+		if ($smkt < $target_mktime) {
+			push @lines, $line;
+		}
+	}
+	close LOG or die red("There was a problem closoing the temp messages file: $!");
+}
+
+	# Now process all the lines
+foreach my $line ( @lines ) {
+	my ($y, $m, $d, $h, $mm, $s, $mkt) = &extract_log_date($line);
+	if ($verbose) { print STDERR "($y $m $d, $h, $mm, $s, $mkt)\n"; }
+	if ($line =~ /\bIN=(eth[0-3])\b/) { 
+		my $if = $1;
+		print colored("IFACE: $if\n", "bold cyan") if ($verbose);
+		$iface_pkts{$if}{$mkt}++; 
+	}
+	if ($line =~ / (\.\.FFC\.\.not\.GREEN\.subnet\.\.|Denied-by-filter:(?:FORWARD|badtraffic|outgoing|tndrop)) /) {
+		my $f = $1;
+		print colored("Filter not in known filters list: |$f| \n", "yellow") 
+			unless (exists($known_filters{$f}));
+		$filters{$f}{$mkt}++;
+	}
+	if ($line =~ / SRC=((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}?(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)) /) { 
+		$src = $1; 
+		#$src = trim($src);
+		$src =~ s/^\s+|\s+$//g;
+		next if ((!defined($src)) or ($src eq ""));
+		next if (exists($db_sources{$src}{$mkt}));
+		print colored("SRC IP: $src\n", "bold magenta") if ($verbose);
+		$sources{$src}{$mkt}++; 
+	}
+	if ($line =~ / DST=((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}?(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)) /) { 
+		$dst = $1; 
+		#$dst = trim($dst);
+		$dst =~ s/^\s+|\s+$//g;
+		next if ((!defined($dst)) or ($dst eq ""));
+		next if (exists($db_dests{$dst}{$mkt}));
+		print colored("DEST IP: $dst\n", "bold cyan") if ($verbose);
+		$dests{$dst}{$mkt}++; 
+	}
+	if ($line =~ /DPT=(.*?) /) { 
+		$dport = $1; 
+		#$dport = trim($dport);
+		$dport =~ s/^\s+|\s+$//g;
+		next if ((!defined($dport)) or ($dport eq ""));
+		next if (exists($db_dports{$dport}{$mkt}));
+		print colored("Captured port doesn't look valid: $dport\n", "yellow")
+			if ($dport !~ /\d{1,5}/);
+		$dports{$dport}{$mkt}++; 
+	}
 }
 
 #
@@ -227,20 +265,19 @@ print "Inserting source data....\n" if ($verbose);
 foreach my $src ( sort keys %sources ) {
 	foreach my $src_date ( sort keys %{$sources{$src}} ) {
 		next if ($src eq '0.0.0.1');		# invalid IP
-		print STDERR "SRC: $src\n";
-		my $cc_ref = "";
-		if (! is_rfc1918($src)) {
-			my $cc_ref = $gip->get_city_record_as_hash($src);
-			print STDERR Dumper($cc_ref) if ($verbose);
-			if ($cc_ref->{'country_name'} =~ /'/) { $cc_ref->{'country_name'} =~ s/'/''/g; }
-			if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
-				$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
-				# "refresh" the lookup hashes with the added values
-				$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
-				foreach my $result ( @{$results} ) {
-					$db_countries_cc{$results->{'cc'}} = $result->{'id'};
-					$db_countries_name{$result->{'name'}} = $result->{'id'};
-				}
+		#print STDERR "SRC: $src\n";
+		next if (is_rfc1918($src));
+		my $cc_ref = $gip->get_city_record_as_hash($src);
+		#print STDERR Dumper($cc_ref) if ($verbose);
+		if ($cc_ref->{'country_name'} =~ /'/) { $cc_ref->{'country_name'} =~ s/'/''/g; }
+		if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
+			$cc_ref->{'country_name'} =~ s/\'/\%27/g;
+			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
+			# "refresh" the lookup hashes with the added values
+			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
+			foreach my $result ( @{$results} ) {
+				$db_countries_cc{$results->{'cc'}} = $result->{'id'};
+				$db_countries_name{$result->{'name'}} = $result->{'id'};
 			}
 		}
 		$sql_utils_obj->execute_non_query("INSERT INTO sources (ip_addr,datetime,hitcount) VALUES ('$src', '$src_date', '$sources{$src}{$src_date}');");
@@ -250,17 +287,18 @@ foreach my $src ( sort keys %sources ) {
 print "Inserting destination data....\n" if ($verbose);
 foreach my $dst ( sort keys %dests ) {
 	foreach my $dst_date ( sort keys %{$dests{$dst}} ) {
-		if (! is_rfc1918($dst)) {
-			my $cc_ref = $gip->get_city_record_as_hash($dst);
-			print STDERR Dumper($cc_ref) if ($verbose);	
-			if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
-				$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
-				# "refresh" the lookup hashes with the added values
-				$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
-				foreach my $result ( @{$results} ) {
-					$db_countries_cc{$result->{'cc'}} = $result->{'id'};
-					$db_countries_name{$result->{'name'}} = $result->{'id'};
-				}
+		next if (is_rfc1918($dst));
+		my $cc_ref = $gip->get_city_record_as_hash($dst);
+		next if ((!defined($cc_ref->{'country_code'})) or ($cc_ref->{'country_code'} eq ''));
+		#print STDERR Dumper($cc_ref) if ($verbose);	
+		if (!exists($db_countries_cc{$cc_ref->{'country_code'}})) {
+			$cc_ref->{'country_name'} =~ s/\'/\%27/g;
+			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
+			# "refresh" the lookup hashes with the added values
+			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
+			foreach my $result ( @{$results} ) {
+				$db_countries_cc{$result->{'cc'}} = $result->{'id'};
+				$db_countries_name{$result->{'name'}} = $result->{'id'};
 			}
 		}
 		$sql_utils_obj->execute_non_query("INSERT INTO destinations (ip_addr,datetime,hitcount) VALUES ('$dst', '$dst_date', '$dests{$dst}{$dst_date}');");
@@ -293,6 +331,8 @@ END
 
 	exit 0;
 }
+
+sub trim { my $s =~ shift; $s = s/^\s+|\s+$//g; return $s; }
 
 sub extract_log_date() {
 	my $line = shift(@_);
@@ -353,6 +393,7 @@ sub check_geoip_db() {
 				chomp($ans);
 				if ($ans =~ /[Yy](es)?/) {
 					#update the GeoIP database
+					require File::Fetch;
 					my $ff = File::Fetch->new(uri => 'http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz');
 					my $where = $ff->fetch( 'to' => '/tmp' );
 					print "==> $where\n";
