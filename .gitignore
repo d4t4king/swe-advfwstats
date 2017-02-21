@@ -21,3 +21,4 @@ nytprof.out
 *~
 *.db
 *.db-journal
+*.json
