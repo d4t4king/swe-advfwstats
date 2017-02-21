@@ -1,0 +1,243 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use feature qw( switch );
+
+use lib "/usr/lib/smoothwall";
+use header qw( :standard );
+
+use CGI;
+use DBI;
+use Date::Calc qw( Time_to_Date );
+use Data::Dumper;
+use Geo::IP::PurePerl;
+use Net::IPv4Addr;
+use JSON;
+
+use Term::ANSIColor qw( colored );
+
+my $q = CGI->new();
+my $errormessage = '';
+my (%cgiparams, %checked, %ethernetsettings);
+my ($db, $sth, $rtv);
+
+&readhash("${swroot}/ethernet/settings", \%ethernetsettings);
+
+$cgiparams{'ACTION'} = '';
+$cgiparams{'cbxNoGreenSource'} = '';
+$cgiparams{'cbxNoRedDest'} = '';
+
+$checked{'cbxNoGreenSource'}{'off'} = '';
+$checked{'cbxNoGreenSource'}{'on'} = '';
+$checked{'cbxNoGreenSource'}{$cgiparams{'cbxNoGreenSource'}} = 'checked="checked"';
+$checked{'cbxNoRedDest'}{'off'} = '';
+$checked{'cbxNoRedDest'}{'on'} = '';
+$checked{'cbxNoRedDest'}{$cgiparams{'cbxNoRedDest'}} = 'checked="checked"';
+
+&getcgihash(\%cgiparams);
+
+if ((defined($cgiparams{'cbxNoRedDest'})) and ($cgiparams{'cbxNoRedDest'} eq 'on')) {
+	$errormessage .= "NoRedDest Checked";
+}
+my $now = time();
+
+# Read in the JSON data.
+# This data is populated by hourly cronjob.
+open JSON, "</var/smoothwall/mods/adv_fw_stats/var/db/fwstats.json" or 
+	$errormessage .= "There was a problem opening the JSON data file: $!\n";
+my $json_str = <JSON>;
+close JSON or $errormessage .= "There was a problem closing the JSON file: $!\n";
+my $data = decode_json($json_str);
+
+&showhttpheaders();
+
+print "\<!-- MARKER################################################################MARKER -->\n";
+
+&openpage("Advanced FW Statistics", 1, "", "Advanced FW Statistics __");
+
+&openbigbox("100%", "LEFT");
+
+&alertbox($errormessage);
+
+my $gip = Geo::IP::PurePerl->open('/usr/share/GeoIP/GeoIP.dat', 'GEOIP_MEMORY_CACHE');
+
+&openbox('DEBUG');
+print <<PRE;
+<pre>
+	ENV{'QUERY_STRING'}	=>	$ENV{'QUERY_STRING'}
+	\$now	=>	$now
+	ddlPeriod	=>	$cgiparams{'ddlPeriod'}
+	NoGreenSource	=>	$cgiparams{'cbxNoGreenSource'}
+	NoGreenSource Checked	=>	$checked{'cbxNoGreenSource'}{'on'}
+	NoGreenSource Checked	=>	$checked{'cbxNoGreenSource'}{'off'}
+	NoRedDest	=>	$cgiparams{'cbxNoRedDest'}
+	NoRedDest Checked	=>	$checked{'cbxNoRedDest'}{'on'}
+	NoRedDest Checked	=>	$checked{'cbxNoRedDest'}{'off'}
+	ACTION	=>	$cgiparams{'ACTION'}
+</pre>
+<hr width="75%" />
+<pre>
+PRE
+print Dumper(\%cgiparams); 
+print <<PRE;
+<hr width="90%" />
+<h4>ethernetsettings</h4>
+<pre>
+PRE
+
+print Dumper(\%ethernetsettings);
+
+print "</pre>\n";
+print <<EOHTML;
+<h4>cgiparams</h4>
+<pre>
+EOHTML
+
+print Dumper(\%cgiparams);
+
+print "</pre>\n";
+
+&closebox();
+
+&openbox($tr{'afws_global_fw_statistics'});
+
+print <<EOS;
+<form method='post' action="$ENV{'SCRIPT_NAME'}" name='filterCheckBoxForm'>
+<table style="width: 100%">
+	<tr>
+		<td style="width: 60%;">
+			<label id="lblGreenFromSources">$tr{'afws_filter_green'}</label>
+			<input type="checkbox" name="cbxNoGreenSource" id="cbxNoGreenSource" $checked{'cbxNoGreenSource'}{'on'}></input>
+			<label id="lblRedFromDests">$tr{'afws_filter_red'}</label>
+			<input type="checkbox" name="cbxNoRedDest" id="cbxNoRedDest" $checked{'cbxNoRedDest'}{'on'}></input>
+			<input type="submit" name="btnFilter" id="btnFilter" value="Filter"></input>
+		</td>
+	</tr>
+</table><br /><br />
+EOS
+
+my $line_cnt = 0;
+#=================================================================
+# interfaces
+#=================================================================
+print $q->h3($tr{'afws_interfaces'});
+print "\n\t\t<table class=\"centered\" style=\"width: 75%\">\n";
+foreach my $if ( sort { $data->{'interfaces'}{$b} <=> $data->{'interfaces'}{$a} } keys %{$data->{'interfaces'}} ) {
+	if ($line_cnt % 2 == 0 ) {
+		print "\t\t\t<tr class=\"light\"><td style=\"width: 80%\">$if</td><td style=\"width: 20%\">$data->{'interfaces'}{$if}</td></tr>\n";
+	} else {
+		print "\t\t\t<tr class=\"dark\"><td style=\"width: 80%\">$if</td><td style=\"width: 20%\">$data->{'interfaces'}{$if}</td></tr>\n";
+	}
+	$line_cnt++;
+}
+print "\t\t</table>\n";
+print "<br /><br />\n";
+$line_cnt = 0;
+#=================================================================
+# filters
+#=================================================================
+print $q->h3($tr{'afws_filters'});
+print "\n<table class=\"centered\" style=\"width: 75%\">\n";
+foreach my $f ( sort { $data->{'filters'}{$b} <=> $data->{'filters'}{$a} } keys %{$data->{'filters'}} ) {
+	if ($line_cnt % 2 == 0) {
+		print "\t\t<tr class=\"light\"><td style=\"width: 80%\">$f</td><td style=\"width: 20%\">$data->{'filters'}{$f}</td></tr>\n";
+	} else {
+		print "\t\t<tr class=\"dark\"><td style=\"width: 80%\">$f</td><td style=\"width: 20%\">$data->{'filters'}{$f}</td></tr>\n";
+	}
+	$line_cnt++;
+}
+print "</table>\n";
+print "<br /><br />\n";
+$line_cnt = 0;
+#=================================================================
+# sources
+#=================================================================
+print $q->h3($tr{'afws_sources'});
+print "\n<table class=\"centered\" style=\"width: 75%\">\n";
+foreach my $s ( sort { $data->{'sources'}{$b} <=> $data->{'sources'}{$a} } keys %{$data->{'sources'}} ) {
+	if ($line_cnt % 2 == 0) {
+		print "<tr class=\"light\"><td style=\"width: 40%\">$s</td><td style=\"width: 40%\">";
+	} else {
+		print "<tr class=\"dark\"><td style=\"width: 40%\">$s</td><td style=\"width: 40%\">"
+	}
+	### FIX ME:  Use NetIPv4::Addr to match CIDRs,
+	# and utilitze the GREEN/RED settings where
+	#  appropriate.
+	my $country = $gip->country_name_by_addr($s);
+	if ($s !~ /192\.168\.1\.\d+/) { print $country; }
+	else { print "&nbsp;"; }
+	print "</td><td style=\"width: 20%\">$data->{'sources'}{$s}</td></tr>\n";
+	$line_cnt++;
+}
+print "</table>\n";
+print "<br /><br />\n";
+$line_cnt = 0;
+#=================================================================
+# destinations 
+#=================================================================
+print $q->h3($tr{'afws_destinations'});
+print "\n<table class=\"centered\" style=\"width: 75%\">\n";
+foreach my $d ( sort { $data->{'destinations'}{$b} <=> $data->{'destinations'}{$a} } keys %{$data->{'destinations'}} ) {
+	if ($line_cnt % 2 == 0 ) {
+		print "<tr class=\"light\"><td style=\"width: 40%\">$d</td><td style=\"width: 40%\">";
+	} else {
+		print "<tr class=\"dark\"><td style=\"width: 40%\">$d</td><td style=\"width: 40%\">";
+	}
+	### FIX ME:  Use NetIPv4::Addr to match CIDRs,
+	# and utilitze the GREEN/RED settings where
+	#  appropriate.
+	my $country = $gip->country_name_by_addr($d);
+	if ($d !~ /192\.168\.1\.\d+/) { print $country; }
+	else { print "&nbsp;"; }
+	print "</td><td style=\"width: 20%\">$data->{'destinations'}{$d}</td></tr>\n";
+	$line_cnt++;
+}
+print "</table\n";
+print "<br /><br />\n";
+$line_cnt = 0;
+#=================================================================
+# destination port
+#=================================================================
+print $q->h3("$tr{'afws_dest_ports'}");
+print "<table class=\"centered\" style=\"width: 75%\">\n";
+foreach my $dp ( sort { $data->{'destination_ports'}{$b} <=> $data->{'destination_ports'}{$a} } keys %{$data->{'destination_ports'}} ) {
+	if ($line_cnt % 2 == 0 ) {
+		print "<tr class=\"light\"><td style=\"width: 80%\">$dp</td><td style=\"with: 20%\">$data->{'destination_ports'}{$dp}</td></td>\n";
+	} else {
+		print "<tr class=\"dark\"><td style=\"width: 80%\">$dp</td><td style=\"with: 20%\">$data->{'destination_ports'}{$dp}</td></td>\n";
+	}
+	$line_cnt++;
+}
+print "</table>\n";
+print "<br /><br />\n";
+
+print "</form>\n";
+
+&closebox();
+
+&alertbox('add', 'add');
+
+&closebigbox();
+
+&closepage();
+
+sub mon2num() {
+	no warnings;
+	my $m = shift(@_);
+	given ($m) {
+		when ('Jan') { return '1'; }
+		when ('Feb') { return '2'; }
+		when ('Mar') { return '3'; }
+		when ('Apr') { return '4'; }
+		when ('May') { return '5'; }
+		when ('Jun') { return '6'; }
+		when ('Jul') { return '7'; }
+		when ('Aug') { return '8'; }
+		when ('Sep') { return '9'; }
+		when ('Oct') { return '10'; }
+		when ('Nov') { return '11'; }
+		when ('Dec') { return '12'; }
+		default { die "Unexpected month input: $m\n"; }
+	}
+}
