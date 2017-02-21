@@ -1,0 +1,51 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+
+use Term::ANSIColor;
+use DBI;
+use JSON;
+
+#my (%filters, %iface_pkts, %sources, %dests, %dports);
+my %data;
+my $db = DBI->connect("dbi:SQLite:/var/smoothwall/mods/adv_fw_stats/var/db/fwstats.db", "", "");
+my $sth = $db->prepare("SELECT name,SUM(hitcount) FROM ifaces GROUP BY name ORDER BY SUM(hitcount) DESC") or die "can't execute statement: $DBI::errstr";
+my $rtv = $sth->execute() or die "Can't execute statement: $DBI::errstr";
+while (my @row = $sth->fetchrow_array()) {
+	$data{'interfaces'}{$row[0]} = $row[1];
+}
+# filters
+$sth = $db->prepare("SELECT name,SUM(hitcount) FROM filters GROUP BY name ORDER BY SUM(hitcount) DESC") or die "Can't prepare statement: $DBI::errstr";
+$sth->execute() or die "Can't execute statement: $DBI::errstr";
+while (my @row = $sth->fetchrow_array()) {
+	$data{'filters'}{$row[0]} = $row[1];
+}
+# sources
+$sth = $db->prepare("SELECT ip_addr,SUM(hitcount) FROM sources GROUP BY ip_addr ORDER BY SUM(hitcount) DESC") or die "Can't prepare statement: $DBI::errstr";
+$sth->execute() or die "Can't execute statement: $DBI::errstr";
+while (my @row = $sth->fetchrow_array()) {
+	$data{'sources'}{$row[0]} = $row[1];
+}
+# destinations
+$sth = $db->prepare("SELECT ip_addr,SUM(hitcount) FROM destinations GROUP BY ip_addr ORDER BY SUM(hitcount) DESC") or die "Can't prepare statement: $DBI::errstr";
+$sth->execute() or die "Can't execute statement: $DBI::errstr";
+while (my @row = $sth->fetchrow_array()) {
+	$data{'destinations'}{$row[0]} = $row[1];
+}
+# dest ports
+$sth = $db->prepare("SELECT port_num,SUM(hitcount) from dest_ports GROUP BY port_num ORDER BY SUM(hitcount) DESC") or die "Can't prepare statement: $DBI::errstr";
+$sth->execute() or die "Can't execute statement: $DBI::errstr";
+while (my @row = $sth->fetchrow_array()) {
+	$data{'destination_ports'}{$row[0]} = $row[1];
+}
+
+warn $DBI::errstr if $DBI::err;
+$sth->finish() or die "There was a problem cleaning up the statement handle: $DBI::errstr";
+
+$db->disconnect();
+
+open OUT, ">/var/smoothwall/mods/adv_fw_stats/var/db/fwstats.json" or die "Couldn't open json file for writing: $!";
+print OUT encode_json(\%data);
+close OUT or die "Couldn't close json file: $! ";
+print "\n";
