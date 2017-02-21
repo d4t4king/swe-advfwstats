@@ -21,8 +21,6 @@ my $errormessage = '';
 my (%filtersettings, %checked, %ethernetsettings);
 my ($db, $sth, $rtv);
 
-&showhttpheaders();
-
 &readhash("${swroot}/ethernet/settings", \%ethernetsettings);
 
 $checked{'ENABLE'}{'off'} = '';
@@ -47,6 +45,9 @@ $checked{'cbxNoGreenSource'}{$filtersettings{'cbxNoGreenSource'}} = 'CHECKED';
 my (%filters, %iface_pkts, %sources, %dests, %dports);
 my $now = time();
 
+#
+#### Load the data from the database
+#
 # interfaces
 $db = DBI->connect("dbi:SQLite:/var/smoothwall/mods/adv_fw_stats/var/db/fwstats.db", "", "");
 $sth = $db->prepare("SELECT name,SUM(hitcount) FROM ifaces GROUP BY name ORDER BY SUM(hitcount) DESC") or die "can't execute statement: $DBI::errstr";
@@ -84,6 +85,14 @@ $sth->finish() or die "There was a problem cleaning up the statement handle: $DB
 
 $db->disconnect();
 
+#
+### Done loading the data.  Now load the page.
+#
+
+&showhttpheaders();
+
+print "\<!-- MARKER################################################################MARKER -->\n";
+
 &openpage("Advanced FW Statistics", 1, "", "Advanced FW Statistics __");
 
 &openbigbox("100%", "LEFT");
@@ -92,16 +101,19 @@ $db->disconnect();
 
 my $gip = Geo::IP::PurePerl->open('/usr/share/GeoIP/GeoIP.dat', 'GEOIP_MEMORY_CACHE');
 
-print "<form method='post'>\n";
-
 &openbox('DEBUG');
 print <<PRE;
 <pre>
-	\$now	=>	$now\n
-	ddlPeriod	=>	$filtersettings{'ddlPeriod'}\n
-	NoGreenSource	=>	$filtersettings{'cbxNoGreenSource'}\n
-	NoRedDest	=>	$filtersettings{'cbxNoRedDest'}\n
-	ACTION	=>	$filtersettings{'ACTION'}\n
+	ENV{'QUERY_STRING'}	=>	$ENV{'QUERY_STRING'}
+	\$now	=>	$now
+	ddlPeriod	=>	$filtersettings{'ddlPeriod'}
+	NoGreenSource	=>	$filtersettings{'cbxNoGreenSource'}
+	NoGreenSource Checked	=>	$checked{'cbxNoGreenSource'}{'on'}
+	NoGreenSource Checked	=>	$checked{'cbxNoGreenSource'}{'off'}
+	NoRedDest	=>	$filtersettings{'cbxNoRedDest'}
+	NoRedDest Checked	=>	$checked{'cbxNoRedDest'}{'on'}
+	NoRedDest Checked	=>	$checked{'cbxNoRedDest'}{'off'}
+	ACTION	=>	$filtersettings{'ACTION'}
 </pre>
 <h4>ethernetsettings</h4>
 <pre>
@@ -123,6 +135,8 @@ print "</pre>\n";
 
 &openbox($tr{'afws_global_fw_statistics'});
 
+print "<form method='POST' action='?' name='filterCheckBoxForm'>\n";
+
 print <<EOS;
 
 <table style="width: 100%">
@@ -142,7 +156,7 @@ print <<EOS;
 			<input type="checkbox" name="cbxNoGreenSource" id="cbxNoGreenSource" $checked{'cbxNoGreenSource'}{'on'}></input>
 			<label id="lblRedFromDests">$tr{'afws_filter_red'}</label>
 			<input type="checkbox" name="cbxNoRedDest" id="cbxNoRedDest" $checked{'cbxNoRedDest'}{'on'}></input>
-			<input type="submit" name="FILTER1" id="btnFilter1" value="Filter"></input>
+			<input type="submit" name="ACTION" id="btnFilter1" value="FILTER"></input>
 		</td>
 	</tr>
 	<!-- <tr>
@@ -233,9 +247,9 @@ foreach my $dp ( sort { $dports{$b} <=> $dports{$a} } keys %dports ) {
 print "</table>\n";
 print "<br /><br />\n";
 
-&closebox();
-
 print "</form>\n";
+
+&closebox();
 
 &alertbox('add', 'add');
 
