@@ -16,8 +16,14 @@ use JSON;
 
 my (%proxysettings, %netsettings, %mainsettings, %filtersettings);
 
-&readhash("${swroot}/ethernet/settings", \%netsettings);
-&readhash("${swroot}/main/settings", \%mainsettings);
+my $errormessage = '';
+
+&readhash("$swroot/ethernet/settings", \%netsettings);
+&readhash("$swroot/main/settings", \%mainsettings);
+open RED, "<$swroot/red/local-ipaddress" or $errormessage .= "Couldn't open red local-ipaddress:$!\n";
+my $RED_IP = <RED>;
+close RED;
+chomp($RED_IP);
 
 &showhttpheaders();
 
@@ -26,8 +32,6 @@ $proxysettings{'cbxNoRedDest'} = 'off';
 $proxysettings{'cbxNoGreenSource'} = 'off';
 
 &getcgihash(\%proxysettings);
-
-my $errormessage = '';
 
 my %checked;
 $checked{'cbxNoRedDest'}{'off'} = '';
@@ -46,6 +50,8 @@ chomp($json);
 close JSON or $errormessage .= "<br />There was a problem closing the json file: $!";
 my $data = decode_json($json);
 
+# Extra HTML head stuff
+my $refresh = '';
 &openpage($tr{'afws_advanced_stats'}, 1, $refresh, 'about');
 
 &openbigbox('100%', 'LEFT');
@@ -54,6 +60,7 @@ my $data = decode_json($json);
 
 print "<form method='POST' action='?'><div>\n";
 
+=begin
 &openbox($tr{'afws_advanced_stats'});
 print <<END
 <table width='100%'>
@@ -80,11 +87,12 @@ print <<END
 </table>
 END
 ;
+=cut
 
 &openbox($tr{'afws_interfaces'});
 print <<END;
-<table border="1" id="interfaceStatsTable" width="100%">
-	<tr><td>Interface Name</td><td>Drop Count</td></tr>
+<table border="1" style="border-collapse: collapse; border: 1px solid black;" id="interfaceStatsTable" width="100%">
+	<tr style="background-color: #acacac;"><td width=\"50%\"><b>Interface Name</b></td><td><b>Drop Count</b></td></tr>
 END
 foreach my $if ( sort keys %{$data->{'interfaces'}} ) {
 	print "<tr><td>$if</td><td>$data->{'interfaces'}{$if}</td></tr>\n";
@@ -94,8 +102,8 @@ print "</table>\n";
 
 &openbox($tr{'afws_filters'});
 print <<END;
-<table border="1" id="filtersStatsTable" width="100%">
-	<tr><td>Filter Name</td><td>Drop Count</td></tr>
+<table border="1" style="border-collapse: collapse; border: 1px solid black;" id="filtersStatsTable" width="100%">
+	<tr><td width=\"50%\">Filter Name</td><td>Drop Count</td></tr>
 END
 foreach my $if ( sort keys %{$data->{'filters'}} ) {
 	print "<tr><td>$if</td><td>$data->{'filters'}{$if}</td></tr>\n";
@@ -106,8 +114,8 @@ print "</table>\n";
 &openbox($tr{'afws_sources'});
 my $count = 0;
 print <<END;
-<table border="1" id="sourcesStatsTable" width="100%">
-	<tr><td>Source IPs</td><td>Drop Count</td></tr>
+<table border="1" style="border-collapse: collapse; border: 1px solid black;" id="sourcesStatsTable" width="100%">
+	<tr><td width=\"50%\">Source IPs</td><td>Drop Count</td></tr>
 END
 foreach my $if ( sort { $data->{'sources'}{$b} <=> $data->{'sources'}{$a} } keys %{$data->{'sources'}} ) {
 	if ($checked{'cbxNoGreenSource'}{'on'} eq "on") {
@@ -124,12 +132,12 @@ print "</table>\n";
 &openbox($tr{'afws_destinations'});
 $count = 0;
 print <<END;
-<table border="1" id="destsStatsTable" width="100%">
-	<tr><td>Destination IPs</td><td>Drop Count</td></tr>
+<table border="1" style="border-collapse: collapse; border: 1px solid black;" id="destsStatsTable" width="100%">
+	<tr><td width=\"50%\">Destination IPs</td><td>Drop Count</td></tr>
 END
 foreach my $if ( sort { $data->{'destinations'}{$b} <=> $data->{'destinations'}{$a} } keys %{$data->{'destinations'}} ) {
-	if ($checked{'cbxNoRedDests'}{'on'} eq "on") {
-		next if ($if = $netsettings{'RED_ADDRESS'});
+	if ($checked{'cbxNoRedDest'}{'on'} eq "on") {
+		next if ($if = $RED_IP);
 	}
 	print "<tr><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
 	last if ($count >= 10);
