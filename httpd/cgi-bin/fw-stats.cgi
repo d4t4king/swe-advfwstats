@@ -22,14 +22,27 @@ my $errormessage = '';
 
 &readhash("$swroot/ethernet/settings", \%netsettings);
 &readhash("$swroot/main/settings", \%mainsettings);
+# Read the settings file and set defaults as needed (like if the file is empty)
 &readhash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
+if ((not defined($filtersettings{'cbxNoRedDest'})) or ($filtersettings{'cbxNoRedDest'} eq '')) {
+	$filtersettings{'cbxNoRedDest'} = 'off';
+}
+if ((not defined($filtersettings{'cbxNoGreenSource'})) or ($filtersettings{'cbxNoGreenSource'} eq '')) {
+	$filtersettings{'cbxNoGreenSource'} = 'off';
+}
+
+if ((defined($cgiparams{'btnFilter'})) and ($cgiparams{'btnFilter'} eq 'Filter')) {
+	if ($cgiparams{'cbxNoRedDest'}) { $filtersettings{'cbxNoRedDest'} = $cgiparams{'cbxNoRedDest'}; }
+	if ($cgiparams{'cbxNoGreenSource'}) { $filtersettings{'cbxNoGreenSource'} = $cgiparams{'cbxNoGreenSource'}; }
+	unless($errormessage) {
+		&writehash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
+	}
+}
 
 open RED, "<$swroot/red/local-ipaddress" or $errormessage .= "Couldn't open red local-ipaddress:$!\n";
 my $RED_IP = <RED>;
 close RED;
 chomp($RED_IP);
-
-&showhttpheaders();
 
 $cgiparams{'btnFilter'} = '';
 $cgiparams{'cbxNoRedDest'} = 'off';
@@ -54,11 +67,7 @@ chomp($json);
 close JSON or $errormessage .= "<br />There was a problem closing the json file: $!";
 my $data = decode_json($json);
 
-if (($cgiparams{'btnFilter'}) and ($cgiparams{'btnFilter'} eq 'Filter')) {
-	if ($cgiparams{'cbxNoRedDest'}) { $filtersettings{'cbxNoRedDest'} = $cgiparams{'cbxNoRedDest'}; }
-	if ($cgiparams{'cbxNoGreenSource'}) { $filtersettings{'cbxNoGreenSource'} = $cgiparams{'cbxNoGreenSource'}; }
-	&writehash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
-}
+&showhttpheaders();
 
 # Extra HTML head stuff
 my $refresh = '';
