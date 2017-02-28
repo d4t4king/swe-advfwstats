@@ -7,64 +7,67 @@
 # (c) The SmoothWall Team
 
 use lib "/usr/lib/smoothwall";
+use lib "/var/smoothwall/mods/adv_fw_stats/usr/lib/perl5/site_perl";	# Add the mod perl modules
 use header qw( :standard );
 use smoothd qw( message );
 use strict;
 use warnings;
 
 use Data::Dumper;
-use JSON;
+use JSON;			# JSON perl module is missing from mod package
 use Geo::IP::PurePerl;
 
-my (%cgiparams, %netsettings, %mainsettings, %filtersettings);
-# establish some default settings
-$cgiparams{'btnFilter'} = '';
-$cgiparams{'cbxNoRedDest'} = 'off';
-$cgiparams{'cbxNoGreenSource'} = 'off';
-
-my $errormessage = '';
+my (%cgiparams, %netsettings, %mainsettings, %filtersettings, %checked);
 
 &readhash("$swroot/ethernet/settings", \%netsettings);
 &readhash("$swroot/main/settings", \%mainsettings);
+
+my $errormessage = '';
 
 open RED, "<$swroot/red/local-ipaddress" or $errormessage .= "Couldn't open red local-ipaddress:$!\n";
 my $RED_IP = <RED>;
 close RED;
 chomp($RED_IP);
 
-# Read the settings file and set defaults as needed (like if the file is empty)
-&readhash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
-# if the saved settings for RED at empty ot not found, set to off
-if ((not defined($filtersettings{'cbxNoRedDest'})) or ($filtersettings{'cbxNoRedDest'} eq '')) {
-	$filtersettings{'cbxNoRedDest'} = 'off';
-}
-# if the saved settings for GREEN are empty or not found, set to off
-if ((not defined($filtersettings{'cbxNoGreenSource'})) or ($filtersettings{'cbxNoGreenSource'} eq '')) {
-	$filtersettings{'cbxNoGreenSource'} = 'off';
-}
+# establish some default settings
+$filtersettings{'ACTION'} = '';	# Changed key from 'btnFilter' as 'ACTION' is excluded by &writehash
+$filtersettings{'cbxNoRedDest'} = 'off';
+$filtersettings{'cbxNoGreenSource'} = 'off';
 
 # get the CGI parameters
-&getcgihash(\%cgiparams);
+&getcgihash(\%filtersettings);	# Over-write %filtersettings with any received from cgi. Use %filtersettings from now on.
 
-# if the filter button was pressed, set the saved settings to the form settings (CGI parameters)
-#if ((defined($cgiparams{'btnFilter'})) and ($cgiparams{'btnFilter'} eq $tr{'afws_filter_button'})) {
-#	if ($cgiparams{'cbxNoRedDest'}) { $filtersettings{'cbxNoRedDest'} = $cgiparams{'cbxNoRedDest'}; }
-#	if ($cgiparams{'cbxNoGreenSource'}) { $filtersettings{'cbxNoGreenSource'} = $cgiparams{'cbxNoGreenSource'}; }
-# try blindly setting the saved settings to the form settings
-$filtersettings{'cbxNoRedDest'} = $cgiparams{'cbxNoRedDest'};
-$filtersettings{'cbxNoGreenSource'} = $cgiparams{'cbxNoGreenSource'};
+# If the filter button was pressed, save the new settings from cgi to %filtersettings
+##### Use filtersettings instead of cgiparams #####
+if ($filtersettings{'ACTION'} eq $tr{'afws_filter_button'}) { 				# This is always defined now, as a default was set earlier
+	#$filtersettings{'cbxNoRedDest'} = $cgiparams{'cbxNoRedDest'};			# Not needed as the settings have been over-written above
+	#$filtersettings{'cbxNoGreenSource'} = $cgiparams{'cbxNoGreenSource'};	# Not needed as the settings have been over-written above
 	unless($errormessage) {
 		&writehash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
 	}
+}
+
+##### Not needed as a default for $filtersettings{'cbxNoRedDest'} has been set above #####
+# if the saved settings for RED are empty or not found, set to off
+#if ((not defined($filtersettings{'cbxNoRedDest'})) or ($filtersettings{'cbxNoRedDest'} eq '')) {
+#	$filtersettings{'cbxNoRedDest'} = 'off';
+#}
+##### Not needed as a default for $filtersettings{'cbxNoGreenSource'} has been set above #####
+# if the saved settings for GREEN are empty or not found, set to off
+#if ((not defined($filtersettings{'cbxNoGreenSource'})) or ($filtersettings{'cbxNoGreenSource'} eq '')) {
+#	$filtersettings{'cbxNoGreenSource'} = 'off';
 #}
 
-my %checked;
+##### Read the settings file after it has been over-written by any cgi values #####
+&readhash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
+
 $checked{'cbxNoRedDest'}{'off'} = '';
 $checked{'cbxNoRedDest'}{'on'} = '';
-$checked{'cbxNoRedDest'}{$cgiparams{'cbxNoRedDest'}} = 'CHECKED';
+$checked{'cbxNoRedDest'}{$filtersettings{'cbxNoRedDest'}} = 'CHECKED';		# Use settings read from %filtersettings instead
+
 $checked{'cbxNoGreenSource'}{'off'} = '';
 $checked{'cbxNoGreenSource'}{'on'} = '';
-$checked{'cbxNoGreenSource'}{$cgiparams{'cbxNoGreenSource'}} = 'CHECKED';
+$checked{'cbxNoGreenSource'}{$filtersettings{'cbxNoGreenSource'}} = 'CHECKED';	# Use settings read from %filtersettings instead
 
 # load the json data, which is populated by another script
 open JSON, "$swroot/mods/adv_fw_stats/var/db/fwstats.json" or
@@ -78,8 +81,8 @@ my $data = decode_json($json);
 &showhttpheaders();
 
 # saved settings and form settings SHOULD be the same at this point
-print "==============>>> $filtersettings{'cbxNoRedDest'} === $cgiparams{'cbxNoRedDest'} <<<==============\n";
-print "==============>>> $filtersettings{'cbxNoRedDest'} === $cgiparams{'cbxNoRedDest'} <<<==============\n";
+#print "==============>>> $filtersettings{'cbxNoRedDest'} === $filtersettings{'cbxNoRedDest'} <<<==============\n";
+#print "==============>>> $filtersettings{'cbxNoRedDest'} === $filtersettings{'cbxNoRedDest'} <<<==============\n";
 
 # Extra HTML head stuff
 my $refresh = '';
@@ -112,7 +115,7 @@ END
 print <<END
 <table style='width: 60%; border: none; margin-left:auto; margin-right:auto'>
 <tr>
-        <td style='width:50%; text-align:center;'><input type='submit' name='btnFilter' value='$tr{'afws_filter_button'}'></td>
+        <td style='width:50%; text-align:center;'><input type='submit' name='ACTION' value='$tr{'afws_filter_button'}'></td>
 </tr>
 </table>
 END
@@ -129,7 +132,7 @@ print <<END;
 END
 foreach my $if ( sort keys %{$data->{'interfaces'}} ) {
 	if (($count % 2) != 0) {
-		print "<tr style=\"background-color: #ccc;\"><td>$if</td><td>$data->{'interfaces'}{$if}</td></tr>\n";
+		print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'interfaces'}{$if}</td></tr>\n";
 	} else {
 		print "<tr><td>$if</td><td>$data->{'interfaces'}{$if}</td></tr>\n";
 	}
@@ -149,7 +152,7 @@ print <<END;
 END
 foreach my $if ( sort keys %{$data->{'filters'}} ) {
 	if (($count % 2) != 0) {
-		print "<tr style=\"background-color: #ccc\"><td>$if</td><td>$data->{'filters'}{$if}</td></tr>\n";
+		print "<tr style=\"background-color: #ddd\"><td>$if</td><td>$data->{'filters'}{$if}</td></tr>\n";
 	} else {
 		print "<tr><td>$if</td><td>$data->{'filters'}{$if}</td></tr>\n";
 	}
@@ -169,10 +172,10 @@ print <<END;
 END
 foreach my $if ( sort { $data->{'sources'}{$b} <=> $data->{'sources'}{$a} } keys %{$data->{'sources'}} ) {
 	if ($checked{'cbxNoGreenSource'}{'on'} eq "CHECKED") {
-		next if ($if == $netsettings{'GREEN_ADDRESS'});
+		next if ($if eq $netsettings{'GREEN_ADDRESS'});	# Changed '==' to 'eq' as comparison is not numeric
 	}
 	if (($count % 2) != 0) {
-		print "<tr style=\"background-color: #ccc;\"><td>$if</td><td>$data->{'sources'}{$if}</td></tr>\n";
+		print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'sources'}{$if}</td></tr>\n";
 	} else {
 		print "<tr><td>$if</td><td>$data->{'sources'}{$if}</td></tr>\n";
 	}
@@ -193,10 +196,10 @@ print <<END;
 END
 foreach my $if ( sort { $data->{'destinations'}{$b} <=> $data->{'destinations'}{$a} } keys %{$data->{'destinations'}} ) {
 	if ($checked{'cbxNoRedDest'}{'on'} eq "CHECKED") {
-		next if ($if == $RED_IP);
+		next if ($if eq $RED_IP);		# Changed '==' to 'eq' as comparison is not numeric
 	}
 	if (($count % 2) != 0) {
-		print "<tr style=\"background-color: #ccc;\"><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
+		print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
 	} else {
 		print "<tr><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
 	}
@@ -217,7 +220,7 @@ print <<END;
 END
 foreach my $dp ( sort { $data->{'destination_ports'}{$b} <=> $data->{'destination_ports'}{$a} } keys %{$data->{'destination_ports'}} ) {
 	if (($count % 2) != 0) {
-		print "<tr style=\"background-color: #ccc;\"><td>$dp</td><td>$data->{'destination_ports'}{$dp}</td></tr>\n";
+		print "<tr style=\"background-color: #ddd;\"><td>$dp</td><td>$data->{'destination_ports'}{$dp}</td></tr>\n";
 	} else {
 		print "<tr><td>$dp</td><td>$data->{'destination_ports'}{$dp}</td></tr>\n";
 	}
@@ -227,13 +230,14 @@ foreach my $dp ( sort { $data->{'destination_ports'}{$b} <=> $data->{'destinatio
 print "</table>\n";
 &closebox();
 
+=begin
 &openbox('Debug Info');
 #print "<div id=\"debug_container\"><h3>checked hash:</h3>\n";
 print "<h3>checked hash:</h3>\n";
 print "<pre>\n";
 print Dumper(\%checked);
 print "</pre>\n";
-print "<h3>cgiparams hash:</h3>\n";
+print "<h3cgiparams hash:</h3>\n";
 print "<pre>\n";
 print Dumper(\%cgiparams);
 print "</pre>\n";
@@ -243,6 +247,7 @@ print Dumper(\%filtersettings);
 print "</pre>\n";
 #print "</pre></div>\n";
 &closebox();
+=cut
 
 print "</div></form>\n";
 
