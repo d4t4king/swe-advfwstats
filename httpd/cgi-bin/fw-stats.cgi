@@ -17,7 +17,7 @@ use Data::Dumper;
 use JSON;			# JSON perl module is missing from mod package
 use Geo::IP::PurePerl;
 
-my (%cgiparams, %netsettings, %mainsettings, %filtersettings, %checked);
+my (%netsettings, %mainsettings, %filtersettings, %checked);
 
 &readhash("$swroot/ethernet/settings", \%netsettings);
 &readhash("$swroot/main/settings", \%mainsettings);
@@ -33,6 +33,7 @@ chomp($RED_IP);
 $filtersettings{'ACTION'} = '';	# Changed key from 'btnFilter' as 'ACTION' is excluded by &writehash
 $filtersettings{'cbxNoRedDest'} = 'off';
 $filtersettings{'cbxNoGreenSource'} = 'off';
+$filtersettings{'cbxIp2Country'} = 'off';
 
 # get the CGI parameters
 &getcgihash(\%filtersettings);	# Over-write %filtersettings with any received from cgi. Use %filtersettings from now on.
@@ -47,27 +48,19 @@ if ($filtersettings{'ACTION'} eq $tr{'afws_filter_button'}) { 				# This is alwa
 	}
 }
 
-##### Not needed as a default for $filtersettings{'cbxNoRedDest'} has been set above #####
-# if the saved settings for RED are empty or not found, set to off
-#if ((not defined($filtersettings{'cbxNoRedDest'})) or ($filtersettings{'cbxNoRedDest'} eq '')) {
-#	$filtersettings{'cbxNoRedDest'} = 'off';
-#}
-##### Not needed as a default for $filtersettings{'cbxNoGreenSource'} has been set above #####
-# if the saved settings for GREEN are empty or not found, set to off
-#if ((not defined($filtersettings{'cbxNoGreenSource'})) or ($filtersettings{'cbxNoGreenSource'} eq '')) {
-#	$filtersettings{'cbxNoGreenSource'} = 'off';
-#}
-
 ##### Read the settings file after it has been over-written by any cgi values #####
 &readhash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
 
 $checked{'cbxNoRedDest'}{'off'} = '';
 $checked{'cbxNoRedDest'}{'on'} = '';
 $checked{'cbxNoRedDest'}{$filtersettings{'cbxNoRedDest'}} = 'CHECKED';		# Use settings read from %filtersettings instead
-
 $checked{'cbxNoGreenSource'}{'off'} = '';
 $checked{'cbxNoGreenSource'}{'on'} = '';
 $checked{'cbxNoGreenSource'}{$filtersettings{'cbxNoGreenSource'}} = 'CHECKED';	# Use settings read from %filtersettings instead
+$checked{'cbxIp2Country'}{'off'} = '';
+$checked{'cbxIp2Country'}{'on'} = '';
+$checked{'cbxIp2Country'}{$filtersettings{'cbxIp2Country'}} = 'CHECKED'
+
 
 # load the json data, which is populated by another script
 open JSON, "$swroot/mods/adv_fw_stats/var/db/fwstats.json" or
@@ -79,10 +72,6 @@ close JSON or $errormessage .= "<br />There was a problem closing the json file:
 my $data = decode_json($json);
 
 &showhttpheaders();
-
-# saved settings and form settings SHOULD be the same at this point
-#print "==============>>> $filtersettings{'cbxNoRedDest'} === $filtersettings{'cbxNoRedDest'} <<<==============\n";
-#print "==============>>> $filtersettings{'cbxNoRedDest'} === $filtersettings{'cbxNoRedDest'} <<<==============\n";
 
 # Extra HTML head stuff
 my $refresh = '';
@@ -104,7 +93,20 @@ print <<END
 	<td><input type='checkbox' name='cbxNoGreenSource' $checked{'cbxNoGreenSource'}{'on'} /></td>
 </tr>
 <tr>
-	<td colspan='4'>&nbsp;</td>
+	<td class="base">$tr{'afws_ip2country'}</td>
+	<td><input type="checkbox" name="cbxIp2Country" $checked{'cbxIp2Country'}{'on'} /></td>
+	<td class="base">&nbsp;</td>
+	<td>&nbsp;</td>
+<tr>
+END
+;
+if ( -e "/var/smoothwall/mods/adv_fw_stats/updating" ) {
+	print <<END;
+	<!-- <td colspan='4'>&nbsp;</td> -->
+	<td colspan="4" style="width: 100%; margin: 0 auto; font-weight: bold; text-align: center;">Stats update is currently running.</td>
+END
+}
+print <<END
 </tr>
 </table>
 <BR>
@@ -121,6 +123,7 @@ print <<END
 END
 ;
 
+my $gip = Geo::IP::PurePerl->new(GEOIP_STANDARD);
 #==================================================================================================
 # Interfaces
 #==================================================================================================
@@ -196,7 +199,7 @@ print <<END;
 END
 foreach my $if ( sort { $data->{'destinations'}{$b} <=> $data->{'destinations'}{$a} } keys %{$data->{'destinations'}} ) {
 	if ($checked{'cbxNoRedDest'}{'on'} eq "CHECKED") {
-		next if ($if eq $RED_IP);		# Changed '==' to 'eq' as comparison is not numeric
+		next if ($if eq $RED_IP);		# Changed '==' to 'eq' as comparison is not numeric (evaluates as a string)
 	}
 	if (($count % 2) != 0) {
 		print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";

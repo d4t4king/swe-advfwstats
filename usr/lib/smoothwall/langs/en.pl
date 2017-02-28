@@ -16,4 +16,5 @@
 	'afws_destinations'				=>	'Destinations:',
 	'afws_dest_ports'				=>	'Destination Ports:',
 	'afws_filter_button'			=>	'Filter',
+	'afws_ip2country'				=>	'Translate IPs to Country:',
 );
