@@ -12,7 +12,7 @@ use Data::Dumper;
 use IO::Uncompress::Gunzip qw( gunzip $GunzipError );
 use Geo::IP::PurePerl;
 
-use lib "usr/lib/perl5/site_perl/5.14.4/";
+use lib "/var/smoothwall/mods/adv_fw_stats/usr/lib/perl5/site_perl/5.14.4/";
 use SQL::Utils;
 
 my ($dbfile, $depth, $help, $onetime, $verbose);
@@ -58,9 +58,15 @@ if (($depth) && ($depth ne "") && ($depth =~ /\d+/)) { $__depth__ = $depth; }
 
 if (!defined($dbfile)) { warn yellow("Must have database file defined! \($dbfile\)"); &Usage(); }
 
-if ($verbose) { print "Checking GeoIP database....\n"; }
+my $is_cron = 0;
+eval { open TTY, "/dev/tty"; if ($? == 0) { $is_cron = 0; close TTY; } };
+if ($@) { $is_cron = 1; }
 
-&check_geoip_db();
+# don't run the interactive check if we are running in cron
+unless ($is_cron) {
+	if ($verbose) { print "Checking GeoIP database....\n"; }
+	&check_geoip_db();
+}
 
 #
 ### Initialize Database Tables (if not exist)
@@ -168,8 +174,9 @@ if ($onetime) {
 	}
 } else {
 	if ($verbose) { print "Just loading the last 24 hours of log data (filters)....\n"; }
-	### FIX ME:  Add the code to add the last 24 hours.
-	warn "###FIX ME!!!  Previous 24-hour code still required!\n";
+	### Add the code to add the last 24 hours.
+	#warn "### Previous 24-hour code still required!\n";
+	# Should be set now.
 	system("/bin/cp -f /var/log/messages /tmp/messages.$$");
 	my $str = `head -1 /tmp/messages.$$`;
 	chomp($str);
@@ -183,6 +190,7 @@ if ($onetime) {
 	open LOG, "</tmp/messages.$$" or die red("Unable to open temp messages file for reading: $!");
 	while (my $line = <LOG>) {
 		chomp($line);
+		next unless ($line =~ /swe\s+kernel\:/);
 		my ($sy,$sm,$sd,$sH,$sM,$sS,$smkt) = &extract_log_date($line);
 		if ($smkt < $target_mktime) {
 			push @lines, $line;
@@ -202,6 +210,12 @@ foreach my $line ( @lines ) {
 	}
 	if ($line =~ / (\.\.FFC\.\.not\.GREEN\.subnet\.\.|Denied-by-filter:(?:FORWARD|badtraffic|outgoing|tndrop)) /) {
 		my $f = $1;
+		### FIX ME @@@
+		#
+		# Need a reliable way to check for "new" filters
+		# (all categories really) 
+		# We should only get to this line if the regular expression isn't 
+		# matched, soooo.....never while these lines are here.
 		print colored("Filter not in known filters list: |$f| \n", "yellow") 
 			unless (exists($known_filters{$f}));
 		$filters{$f}{$mkt}++;
