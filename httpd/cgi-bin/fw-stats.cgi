@@ -100,10 +100,15 @@ print <<END
 <tr>
 END
 ;
-if ( -e "/var/smoothwall/mods/adv_fw_stats/updating" ) {
+if ( -e "/var/smoothwall/mods/advfwstats/updating" ) {
 	print <<END;
 	<!-- <td colspan='4'>&nbsp;</td> -->
-	<td colspan="4" style="width: 100%; margin: 0 auto; font-weight: bold; text-align: center;">Stats update is currently running.</td>
+	<td colspan="4" style="width: 100%; margin: 0 auto; font-weight: bold; text-align: center;">Statistics update is currently running.</td>
+END
+} elsif ( -e "/var/smoothwall/mods/advfwstats/initializing") {
+	print <<END;
+	<!-- <td colspan='4'>&nbsp;</td> -->
+	<td colspan="4" style="width: 100%; margin: 0 auto; font-weight: bold; text-align: center;">Statisticss initialization is currently running.</td>
 END
 }
 print <<END

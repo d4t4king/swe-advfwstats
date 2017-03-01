@@ -63,7 +63,7 @@ eval { open TTY, "/dev/tty"; if ($? == 0) { $is_cron = 0; close TTY; } };
 if ($@) { $is_cron = 1; }
 
 # don't run the interactive check if we are running in cron
-unless ($is_cron) {
+unless (($is_cron) or ($crontab)) {
 	if ($verbose) { print "Checking GeoIP database....\n"; }
 	&check_geoip_db();
 }

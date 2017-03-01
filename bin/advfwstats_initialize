@@ -1,0 +1,11 @@
+#!/bin/bash
+
+#source /etc/bashrc
+
+if [ -z "$STY" ]; then exec screen -dmSt fwstats-update /bin/bash "$0"; fi
+
+MOD_HOME="/var/smoothwall/mods/adv_fw_stats"
+
+touch "${MOD_HOME}/initializing"
+/usr/bin/perl ${MOD_HOME}/bin/fw-db-stats.pl -d ${MOD_HOME}/var/db/fwstats.db --onetime
+rm -f "${MOD_HOME}/initializing"
