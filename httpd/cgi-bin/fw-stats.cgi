@@ -59,7 +59,7 @@ $checked{'cbxNoGreenSource'}{'on'} = '';
 $checked{'cbxNoGreenSource'}{$filtersettings{'cbxNoGreenSource'}} = 'CHECKED';	# Use settings read from %filtersettings instead
 $checked{'cbxIp2Country'}{'off'} = '';
 $checked{'cbxIp2Country'}{'on'} = '';
-$checked{'cbxIp2Country'}{$filtersettings{'cbxIp2Country'}} = 'CHECKED'
+$checked{'cbxIp2Country'}{$filtersettings{'cbxIp2Country'}} = 'CHECKED';
 
 
 # load the json data, which is populated by another script
@@ -123,7 +123,7 @@ print <<END
 END
 ;
 
-my $gip = Geo::IP::PurePerl->new(GEOIP_STANDARD);
+my $gip = Geo::IP::PurePerl->open("/usr/share/GeoIP/GeoIP.dat", GEOIP_MEMORY_CACHE);
 #==================================================================================================
 # Interfaces
 #==================================================================================================
@@ -171,19 +171,40 @@ $count = 0;
 &openbox($tr{'afws_sources'});
 print <<END;
 <table border="1" style="border-collapse: collapse; border: 1px solid black;" id="sourcesStatsTable" width="100%">
-	<tr style="background-color: #acacac;"><td width=\"50%\"><b>Source IPs</b></td><td><b>Drop Count</b></td></tr>
 END
-foreach my $if ( sort { $data->{'sources'}{$b} <=> $data->{'sources'}{$a} } keys %{$data->{'sources'}} ) {
-	if ($checked{'cbxNoGreenSource'}{'on'} eq "CHECKED") {
-		next if ($if eq $netsettings{'GREEN_ADDRESS'});	# Changed '==' to 'eq' as comparison is not numeric
+if ($filtersettings{'cbxIp2Country'} eq 'on') {
+	print <<END;
+	<tr style="background-color: #acacac;"><td width=\"34%\"><b>Source IP</b></td><td width="33%"><b>Country</b></td><td><b>Drop Count</b></td></tr>
+END
+	foreach my $if ( sort { $data->{'sources'}{$b} <=> $data->{'sources'}{$a} } keys %{$data->{'sources'}} ) {
+		if ($checked{'cbxNoGreenSource'}{'on'} eq "CHECKED") {
+			next if ($if eq $netsettings{'GREEN_ADDRESS'});	# Changed '==' to 'eq' as comparison is not numeric
+		}
+		my $country = $gip->country_name_by_addr($if);
+		if (($count % 2) != 0) {
+			print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$country</td><td>$data->{'sources'}{$if}</td></tr>\n";
+		} else {
+			print "<tr><td>$if</td><td>$country</td><td>$data->{'sources'}{$if}</td></tr>\n";
+		}
+		last if ($count >= 10);
+		$count++;
 	}
-	if (($count % 2) != 0) {
-		print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'sources'}{$if}</td></tr>\n";
-	} else {
-		print "<tr><td>$if</td><td>$data->{'sources'}{$if}</td></tr>\n";
+} else {
+	print <<END;
+	<tr style="background-color: #acacac;"><td width=\"50%\"><b>Source IP</b></td><td><b>Drop Count</b></td></tr>
+END
+	foreach my $if ( sort { $data->{'sources'}{$b} <=> $data->{'sources'}{$a} } keys %{$data->{'sources'}} ) {
+		if ($checked{'cbxNoGreenSource'}{'on'} eq "CHECKED") {
+			next if ($if eq $netsettings{'GREEN_ADDRESS'});	# Changed '==' to 'eq' as comparison is not numeric
+		}
+		if (($count % 2) != 0) {
+			print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'sources'}{$if}</td></tr>\n";
+		} else {
+			print "<tr><td>$if</td><td>$data->{'sources'}{$if}</td></tr>\n";
+		}
+		last if ($count >= 10);
+		$count++;
 	}
-	last if ($count >= 10);
-	$count++;
 }
 print "</table>\n";
 &closebox();
@@ -195,19 +216,40 @@ $count = 0;
 &openbox($tr{'afws_destinations'});
 print <<END;
 <table border="1" style="border-collapse: collapse; border: 1px solid black;" id="destsStatsTable" width="100%">
-	<tr style="background-color: #acacac;"><td width="50%"><b>Destination IPs</b></td><td><b>Drop Count</b></td></tr>
 END
-foreach my $if ( sort { $data->{'destinations'}{$b} <=> $data->{'destinations'}{$a} } keys %{$data->{'destinations'}} ) {
-	if ($checked{'cbxNoRedDest'}{'on'} eq "CHECKED") {
-		next if ($if eq $RED_IP);		# Changed '==' to 'eq' as comparison is not numeric (evaluates as a string)
+if ($filtersettings{'cbxIp2Country'} eq 'on') {
+	print <<END;
+	<tr style="background-color: #acacac;"><td width="34%"><b>Destination IP</b></td><td><b>Country</b></td><td><b>Drop Count</b></td></tr>
+END
+	foreach my $if ( sort { $data->{'destinations'}{$b} <=> $data->{'destinations'}{$a} } keys %{$data->{'destinations'}} ) {
+		if ($checked{'cbxNoRedDest'}{'on'} eq "CHECKED") {
+			next if ($if eq $RED_IP);		# Changed '==' to 'eq' as comparison is not numeric (evaluates as a string)
+		}
+		my $country = $gip->country_name_by_addr($if);
+		if (($count % 2) != 0) {
+			print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$country</td><td>$data->{'destinations'}{$if}</td></tr>\n";
+		} else {
+			print "<tr><td>$if</td><td>$country</td><td>$data->{'destinations'}{$if}</td></tr>\n";
+		}
+		last if ($count >= 10);
+		$count++;
 	}
-	if (($count % 2) != 0) {
-		print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
-	} else {
-		print "<tr><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
+} else {
+	print <<END;
+	<tr style="background-color: #acacac;"><td width="50%"><b>Destination IP</b></td><td><b>Drop Count</b></td></tr>
+END
+	foreach my $if ( sort { $data->{'destinations'}{$b} <=> $data->{'destinations'}{$a} } keys %{$data->{'destinations'}} ) {
+		if ($checked{'cbxNoRedDest'}{'on'} eq "CHECKED") {
+			next if ($if eq $RED_IP);		# Changed '==' to 'eq' as comparison is not numeric (evaluates as a string)
+		}
+		if (($count % 2) != 0) {
+			print "<tr style=\"background-color: #ddd;\"><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
+		} else {
+			print "<tr><td>$if</td><td>$data->{'destinations'}{$if}</td></tr>\n";
+		}
+		last if ($count >= 10);
+		$count++;
 	}
-	last if ($count >= 10);
-	$count++;
 }
 print "</table>\n";
 &closebox();
