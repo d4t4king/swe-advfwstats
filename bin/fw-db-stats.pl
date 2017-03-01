@@ -124,8 +124,8 @@ foreach my $tbl_key ( sort keys %existing_data_sql ) {
 			when ('dests') {
 				$db_dests{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
 			}
-				when ('dest_ports') {
-			$db_dports{$result->{'port_num'}}{$result->{'datetime'}} = $result->{'hitcount'};
+			when ('dest_ports') {
+				$db_dports{$result->{'port_num'}}{$result->{'datetime'}} = $result->{'hitcount'};
 			}
 			default { 
 				# we should never get here
