@@ -12,7 +12,7 @@ use Data::Dumper;
 use IO::Uncompress::Gunzip qw( gunzip $GunzipError );
 use Geo::IP::PurePerl;
 
-use lib "/var/smoothwall/mods/adv_fw_stats/usr/lib/perl5/site_perl/5.14.4/";
+use lib "/var/smoothwall/mods/advfwstats/usr/lib/perl5/site_perl/5.14.4/";
 use SQL::Utils;
 
 my ($dbfile, $depth, $help, $onetime, $verbose);

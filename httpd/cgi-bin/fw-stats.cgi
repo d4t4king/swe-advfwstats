@@ -7,7 +7,7 @@
 # (c) The SmoothWall Team
 
 use lib "/usr/lib/smoothwall";
-use lib "/var/smoothwall/mods/adv_fw_stats/usr/lib/perl5/site_perl";	# Add the mod perl modules
+use lib "/var/smoothwall/mods/advfwstats/usr/lib/perl5/site_perl";	# Add the mod perl modules
 use header qw( :standard );
 use smoothd qw( message );
 use strict;
@@ -44,12 +44,12 @@ if ($filtersettings{'ACTION'} eq $tr{'afws_filter_button'}) { 				# This is alwa
 	#$filtersettings{'cbxNoRedDest'} = $cgiparams{'cbxNoRedDest'};			# Not needed as the settings have been over-written above
 	#$filtersettings{'cbxNoGreenSource'} = $cgiparams{'cbxNoGreenSource'};	# Not needed as the settings have been over-written above
 	unless($errormessage) {
-		&writehash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
+		&writehash("$swroot/mods/advfwstats/settings", \%filtersettings);
 	}
 }
 
 ##### Read the settings file after it has been over-written by any cgi values #####
-&readhash("$swroot/mods/adv_fw_stats/settings", \%filtersettings);
+&readhash("$swroot/mods/advfwstats/settings", \%filtersettings);
 
 $checked{'cbxNoRedDest'}{'off'} = '';
 $checked{'cbxNoRedDest'}{'on'} = '';
@@ -63,7 +63,7 @@ $checked{'cbxIp2Country'}{$filtersettings{'cbxIp2Country'}} = 'CHECKED';
 
 
 # load the json data, which is populated by another script
-open JSON, "$swroot/mods/adv_fw_stats/var/db/fwstats.json" or
+open JSON, "$swroot/mods/advfwstats/var/db/fwstats.json" or
 	$errormessage .= "There was a problem opening the json file: $!" and
 	warn "ERROR: Couldn't open json file: $! \n";
 my $json = <JSON>;

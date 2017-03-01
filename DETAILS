@@ -1,4 +1,4 @@
-MOD_NAME=adv_fw_stats
+MOD_NAME=advfwstats
 MOD_DIR=/var/smoothwal/mods/${MOD_NAME}
 MOD_VERSION=0.0.1
 MOD_INFO="This mod summarizes statistics about blocked packets."
