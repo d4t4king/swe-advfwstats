@@ -2,7 +2,67 @@
 
 use strict;
 use warnings;
+use feature qw( switch );
 
 use Term::ANSIColor;
+use Cwd;
 
+print color("bold cyan");
+print <<END;
+This will permanently install perl modules to your smoothie!  These modules
+will remain even after this mod is disabled and/or removed.  This is generally 
+harmless.  Do you want to continue? (y|n)
+END
+print color('reset');
 
+my $cwd = getcwd();
+my $ans = readline();
+chomp($ans);
+if ($ans =~ /^[Yy](?:es)?$/) {
+	given ($cwd) {
+		when ("/tmp/advfwstats") {
+			print colored("In /tmp/...\n", "bold cyan");
+			# create the directory(-ies)
+			system("/bin/mkdir -p /var/smoothwall/mods-available") unless ( -d "/var/smoothwall/mods-available" );
+			system("/bin/mkdir /var/smoothwall/mods-availeble/advfwstats");
+			# copy all of the stuff to the mod dir
+			system("/bin/cp -rf * /var/smoothwall/mods-available/advfwstats/");
+			# install the modules
+			system("/bin/bash install-mods.sh");
+			# change directories and create the symlink
+			chdir("/var/smoothwall/mods/");
+			system("/bin/ln -snf ../mods-available/advfwstats advfwstats");
+			chdir("advfwstats");
+			# start the db initialization in the background
+			print color("bold cyan");
+			print <<END;
+Now starting the database initialization.  Depending on the amount of data 
+available on your system, this could take a very long time.....as long as 
+24 hours or more if you have a lot of data/logs to parse.  Nothing will 
+show in the stats page until the initialization is complete.
+END
+			system("/bin/bash bin/fwstats_initialize");
+		}
+		when ("/var/smoothwall/mods-available/advfwstats") {
+			print "In mod home...\n";
+			# install the modules
+			system("/bin/bash install-mods.sh");
+			# change directories and create the symlink
+			chdir("/var/smoothwall/mods/");
+			system("/bin/ln -snf ../mods-available/advfwstats advfwstats");
+			chdir("advfwstats");
+			# start the db initialization in the background
+			print color("bold cyan");
+			print <<END;
+Now starting the database initialization.  Depending on the amount of data 
+available on your system, this could take a very long time.....as long as 
+24 hours or more if you have a lot of data/logs to parse.  Nothing will 
+show in the stats page until the initialization is complete.
+END
+			system("/bin/bash bin/fwstats_initialize");
+		}
+		default { die colored("Unrecognized install from directory! ($cwd)", "bold red"); }
+	}
+} else {
+	print colored("Quitting!\n", "bold red");
+}
