@@ -97,16 +97,17 @@ sub execute_single_row_query {
 sub execute_multi_row_query {
 	my $self = shift;
 	my $sql = shift;
-	my ($db, $results);
+	my ($db);
+	my (@results);
 	if ($self->{'rdbms'} eq 'sqlite3') {
 		$db = DBI->connect("dbi:$db_types{$self->{'rdbms'}}:$self->{'db_filename'}", "", "") or die "Can't connect to database: $DBI::errstr";
 	}
 	my $sth = $db->prepare($sql) or die "Can't prepare statement: $DBI::errstr";
 	while (my $row = $sth->fetchrow_hashref()) {
-		#print Dumper($row);
-		push $results, $row;
+		print Dumper($row);
+		push @results, $row;
 	}
-	return $results;
+	return @results;
 }
 
 1;

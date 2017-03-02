@@ -8,12 +8,11 @@ use lib "/usr/lib/smoothwall";
 use header qw( :standard );
 
 use CGI;
-use DBI;
 use Date::Calc qw( Time_to_Date );
 use Data::Dumper;
-use Geo::IP::PurePerl;
 
-use Term::ANSIColor qw( colored );
+use lib '/var/smoothwall/mods/advfwstats/usr/lib/perl5/site_perl/5.14.4';
+use SQL::Utils;
 
 my $q = CGI->new();
 my $errormessage = '';
@@ -23,56 +22,20 @@ my $errormessage = '';
 &showhttpheaders();
 
 my (@src_toptalkers, @dst_toptalkers, @dates);
-my (%src_data_structure, %dst_data_structure);
+my (%src_struct, %dst_struct);
 
-my $db = DBI->connect("dbi:SQLite:/httpd/html/db/fwsrc.db", "", "");
-my $sth = $db->prepare("SELECT ip_addr FROM sources GROUP BY ip_addr ORDER BY SUM(hitcount) DESC LIMIT 5;") or die "Can't prepare statement: $DBI::errstr";
-$sth->execute() or die "Can't execute statement: $DBI::errstr";
-while (my @row = $sth->fetchrow_array()) {
-	push(@src_toptalkers, $row[0]);
-}
-#$sth = $db->prepare("SELECT ip_addr FROM destinations GROUP BY ip_addr ORDER BY SUM(hitcount) DESC LIMIT 5;") or die "Can't prepare statement: $DBI::errstr";
-#$sth->execute() or die "Can't execute statement: $DBI::errstr";
-#while (my @row = $sth->fetchrow_array()) {
-#	push(@dst_toptalkers, $row[0]);
-#}
-$sth = $db->prepare("SELECT DISTINCT datetime FROM sources ORDER BY datetime") or die "Can't prpare statement: $DBI::errstr";
-$sth->execute() or die "Can't execute statement: $DBI::errstr";
-while (my @row = $sth->fetchrow_array()) {
-	push(@dates, $row[0]);
-}
-warn $DBI::errstr if $DBI::err;
-$sth->finish() or die "There was a problem cleaning up the SQL statement: $DBI::err";
+my $db = SQL::Utils->new("sqlite3", {'db_filename'=>"/var/smoothwall/mods/advfwstats/var/db/fwstats.db"});
+my $sql = "SELECT ip_addr FROM sources GROUP BY ip_addr ORDER BY SUM(hitcount) DESC LIMIT 5;";
+@src_toptalkers = $db->execute_multi_row_query($sql);
 
-# loop through the data structue and poplate the top talker keys and the date keys
-
-print STDERR "Toptalkers: ".scalar(@src_toptalkers)."\n";
-print STDERR "Dates: ".scalar(@dates)."\n";
 foreach my $tt ( @src_toptalkers ) {
-	foreach my $d ( @dates ) {
-		#$src_data_structure{$tt}{$d} = 1;
-		$sth = $db->prepare("SELECT hitcount FROM sources WHERE ip_addr='$tt' AND datetime='$d'") or die "Can't prepare statement: $DBI::errstr";
-		$sth->execute() or die "Can't execute statement: $DBI::errstr";
-		while (my @row = $sth->fetchrow_array()) { $src_data_structure{$tt}{$d} = $row[0] ? $row[0] : 0; }
+	$sql = "SELECT datetime,hitcount FROM sources WHERE ip_addr='$tt' ORDER BY datetime LIMIT 10;";
+	my @rows = $db->execute_multi_row_query($sql);
+	foreach my $row ( @rows ) {
+		my ($dt,$hc) = split(/|/, $row);
+		$src_struct{$tt}{$dt} = $hc;
 	}
 }
-# loop through the data structue and poplate the top talker keys and the date keys
-#foreach my $tt ( @dst_toptalkers ) {
-#	foreach my $d ( @dates ) {
-#		#$src_data_structure{$tt}{$d} = 1;
-#		$sth = $db->prepare("SELECT hitcount FROM destinations WHERE ip_addr='$tt' AND datetime='$d'") or die "Can't prepare statement: $DBI::errstr";
-#		$sth->execute() or die "Can't execute statement: $DBI::errstr";
-#		while (my @row = $sth->fetchrow_array()) { $dst_data_structure{$tt}{$d} = $row[0] ? $row[0] : 0; }
-#	}
-#}
-#warn $DBI::errstr if $DBI::err;
-#$sth->finish() or die "There was a problem cleaning up the statement: $DBI::errstr";
-#$db->disconnect();
-
-warn $DBI::errstr if $DBI::err;
-$sth->finish() or die "There was a problem cleaning up the statement handle: $DBI::errstr";
-
-$db->disconnect();
 
 &openpage("Google API Test", 1, "", "Google API Test __");
 
@@ -89,8 +52,8 @@ print <<EOS;
 			google.setOnLoadCallback(drawChart);
 
 			function drawChart() {
-				var data = new google.visualization.DataTable();
-				data.addColumn('date', 'Date');
+				var data = new google.visualization.arrayToDataTable([
+					['Date',
 EOS
 	
 	foreach my $tt ( @src_toptalkers ) {
@@ -101,22 +64,11 @@ EOS
 print <<EOS;
 				data.addRows([
 EOS
-
-	foreach my $date ( sort @dates ) {
-		my ($y,$m,$d,$h,$M,$s) = Time_to_Date($date);
-		print "\t\t\t\t\t[new Date($y,".($m-1).",$d,$h,$M,$s,'000'), ";
-		if (defined($src_data_structure{$src_toptalkers[0]}{$date})) { print "$src_data_structure{$src_toptalkers[0]}{$date}, "; }
-		else { print "0, "; }
-		if (defined($src_data_structure{$src_toptalkers[1]}{$date})) { print "$src_data_structure{$src_toptalkers[1]}{$date}, "; }
-		else { print "0, "; }
-		if (defined($src_data_structure{$src_toptalkers[2]}{$date})) { print "$src_data_structure{$src_toptalkers[2]}{$date}, "; }
-		else { print "0, "; }
-		if (defined($src_data_structure{$src_toptalkers[3]}{$date})) { print "$src_data_structure{$src_toptalkers[3]}{$date}, "; }
-		else { print "0, "; }
-		if (defined($src_data_structure{$src_toptalkers[4]}{$date})) { print "$src_data_structure{$src_toptalkers[4]}{$date} ],\n"; }
-		else { print "0 ],\n"; }
+foreach my $tt ( keys %src_struct ) {
+	foreach my $dt ( keys %{$src_struct{$tt}} ) {
+		my ($y,$m,$d,$H,$M,$S) = Time_to_Date($dt);
 	}
-
+}
 print <<EOS;
 				]);
 
@@ -161,15 +113,15 @@ EOS
 #	foreach my $date ( sort @dates ) {
 #		my ($y,$m,$d,$h,$M,$s) = Time_to_Date($date);
 #		print "\t\t\t\t\t[new Date($y,".($m-1).",$d,$h,$M,$s,'000'), ";
-#		if (defined($dst_data_structure{$dst_toptalkers[0]}{$date})) { print "$dst_data_structure{$dst_toptalkers[0]}{$date}, "; }
+#		if (defined($dst_struct{$dst_toptalkers[0]}{$date})) { print "$dst_struct{$dst_toptalkers[0]}{$date}, "; }
 #		else { print "0, "; }
-#		if (defined($dst_data_structure{$dst_toptalkers[1]}{$date})) { print "$dst_data_structure{$dst_toptalkers[1]}{$date}, "; }
+#		if (defined($dst_struct{$dst_toptalkers[1]}{$date})) { print "$dst_struct{$dst_toptalkers[1]}{$date}, "; }
 #		else { print "0, "; }
-#		if (defined($dst_data_structure{$dst_toptalkers[2]}{$date})) { print "$dst_data_structure{$dst_toptalkers[2]}{$date}, "; }
+#		if (defined($dst_struct{$dst_toptalkers[2]}{$date})) { print "$dst_struct{$dst_toptalkers[2]}{$date}, "; }
 #		else { print "0, "; }
-#		if (defined($dst_data_structure{$dst_toptalkers[3]}{$date})) { print "$dst_data_structure{$dst_toptalkers[3]}{$date}, "; }
+#		if (defined($dst_struct{$dst_toptalkers[3]}{$date})) { print "$dst_struct{$dst_toptalkers[3]}{$date}, "; }
 #		else { print "0, "; }
-#		if (defined($dst_data_structure{$dst_toptalkers[4]}{$date})) { print "$dst_data_structure{$dst_toptalkers[4]}{$date} ],\n"; }
+#		if (defined($dst_struct{$dst_toptalkers[4]}{$date})) { print "$dst_struct{$dst_toptalkers[4]}{$date} ],\n"; }
 #		else { print "0 ],\n"; }
 #	}
 #
