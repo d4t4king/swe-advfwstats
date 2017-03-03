@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Installed perl modules from source, and in the required order."
-echo "If you encounter any errors or problems, and don't know what to do, post on the SWE forums, in the thread for this script."
+echo "If you encounter any errors or problems, and don't know what to do, post on the SWE forums, in the thread for this mod."
 
 cd
 perl -mDigest::HMAC -e ';' > /dev/null 2>&1
@@ -121,7 +121,7 @@ if [ ! $? == 0 ]; then
 	make && make install
 fi
 cd
-perl -mMIME::Lite -e ';' > 2/dev/null 2>&1
+perl -mMIME::Lite -e ';' > /dev/null 2>&1
 if [ ! $? == 0 ]; then
 	wget http://search.cpan.org/CPAN/authors/id/R/RJ/RJBS/MIME-Lite-3.030.tar.gz
 	tar xf MIME-Lite-3.030.tar.gz
@@ -130,5 +130,23 @@ if [ ! $? == 0 ]; then
 	make && make install
 fi
 cd
+perl -mDBI -e ';' > /dev/null 2>&1
+if [ ! $? == 0 ]; then
+	wget http://search.cpan.org/CPAN/authors/id/T/TI/TIMB/DBI-1.636.tar.gz
+	tar xf DBI-1.636.tar.gz
+	cd DBI-1.636
+	perl Makefile.PL
+	make && make install
+fi
+cd
+perl -mDBD::SQLite -e ';' > /dev/null 2>&1
+if [ ! $? == 0 ]; then
+	wget http://search.cpan.org/CPAN/authors/id/I/IS/ISHIGAKI/DBD-SQLite-1.54.tar.gz
+	tar xf DBD-SQLite-1.54.tar.gz
+	cd DBD-SQLite-1.54
+	perl Makefile.PL
+	make && make install
+fi
+cd
 
-rm -rf Digest* Net* Geo-IP* Sub* Carp* Bit* Date* Config* Mail* MIME*
+rm -rf Digest* Net* Geo-IP* Sub* Carp* Bit* Date* Config* Mail* MIME* DBI* DBD*
