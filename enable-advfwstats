@@ -28,7 +28,7 @@ if ($ans =~ /^[Yy](?:es)?$/) {
 			# copy all of the stuff to the mod dir
 			system("/bin/cp -rvf * /var/smoothwall/mods-available/advfwstats/");
 			# install the modules
-			my $dev = `/usr/bin/make --help > /dev/null 2>&1`;
+			my $dev = system("/usr/bin/make --help > /dev/null 2>&1");
 			chomp($dev);
 			if ($dev == 0) {
 				system("/bin/bash install-mods.sh");
@@ -62,7 +62,7 @@ END
 		when ("/var/smoothwall/mods-available/advfwstats") {
 			print "In mod home...\n";
 			# install the modules
-			my $dev = `/bin/make --help > /dev/null 2>&1`;
+			my $dev = system("/bin/make --help > /dev/null 2>&1");
 			chomp($dev);
 			if ($dev == 0) {
 				system("/bin/bash install-mods.sh");
