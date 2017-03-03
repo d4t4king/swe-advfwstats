@@ -28,7 +28,18 @@ if ($ans =~ /^[Yy](?:es)?$/) {
 			# copy all of the stuff to the mod dir
 			system("/bin/cp -rvf * /var/smoothwall/mods-available/advfwstats/");
 			# install the modules
-			system("/bin/bash install-mods.sh");
+			my $dev = `/bin/make --help > /dev/null 2>&1`;
+			chomp($dev);
+			if ($dev == 0) {
+				system("/bin/bash install-mods.sh");
+			} else {
+				# likely on a SWE without dev packages
+				my $arch = `/bin/uname -m`;
+				chomp($arch);
+				chdir("/tmp");
+				system("/usr/bin/wget http://smoothwall-info.net/downloads/perl-mod-files-$arch.tar.xz");
+				system("/usr/bin/tar xf perl-mod-files-$arch.tar.xz -C /");
+			}
 			# greb the geoip db
 			system("/usr/bin/wget -O /usr/share/GeoIP/GeoIP.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
 			system("/usr/bin/gzip -d /usr/share/GeoIP/GeoIP.dat.gz");
@@ -51,7 +62,18 @@ END
 		when ("/var/smoothwall/mods-available/advfwstats") {
 			print "In mod home...\n";
 			# install the modules
-			system("/bin/bash install-mods.sh");
+			my $dev = `/bin/make --help > /dev/null 2>&1`;
+			chomp($dev);
+			if ($dev == 0) {
+				system("/bin/bash install-mods.sh");
+			} else {
+				# likely on a SWE without dev packages
+				my $arch = `/bin/uname -m`;
+				chomp($arch);
+				chdir("/tmp");
+				system("/usr/bin/wget http://smoothwall-info.net/downloads/perl-mod-files-$arch.tar.xz");
+				system("/usr/bin/tar xf perl-mod-files-$arch.tar.xz -C /");
+			}
 			# greb the geoip db
 			system("/usr/bin/wget -O /usr/share/GeoIP/GeoIP.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
 			system("/usr/bin/gzip -d /usr/share/GeoIP/GeoIP.dat.gz");
