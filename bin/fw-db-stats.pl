@@ -6,13 +6,12 @@ require 5.010;
 use feature qw( switch );
 
 use Getopt::Long qw( :config no_ignore_case bundling );
-use DBI;
 use Term::ANSIColor;
 use Data::Dumper;
 use IO::Uncompress::Gunzip qw( gunzip $GunzipError );
 use Geo::IP::PurePerl;
 
-use lib "/var/smoothwall/mods/advfwstats/usr/lib/perl5/site_perl/5.14.4/";
+use lib "/var/smoothwall/mods/advfwstats/usr/lib/perl5/site_perl/5.14.4";
 use SQL::Utils;
 
 my ($dbfile, $depth, $help, $onetime, $verbose);
@@ -95,9 +94,11 @@ if ($verbose) { print "Loading existing database data (filters)....\n"; }
 my (%db_countries_cc, %db_countries_name, %db_filters, %db_ifaces, %db_sources, %db_dests, %db_dports);
 my $sql = "SELECT id,cc,name FROM countries";
 my $results = $sql_utils_obj->execute_multi_row_query($sql);
-foreach my $result ( @{$results} ) {
-	$db_countries_cc{$result->{'cc'}} = $result->{'id'};
-	$db_countries_name{$result->{'name'}} = $result->{'id'};
+if ($results > 0) {
+	foreach my $result ( @{$results} ) {
+		$db_countries_cc{$result->{'cc'}} = $result->{'id'};
+		$db_countries_name{$result->{'name'}} = $result->{'id'};
+	}
 }
 
 my %existing_data_sql = (
@@ -110,6 +111,7 @@ my %existing_data_sql = (
 
 foreach my $tbl_key ( sort keys %existing_data_sql ) {
 	$results = $sql_utils_obj->execute_multi_row_query($existing_data_sql{$tbl_key});
+	last if ($results == 0);
 	foreach my $result ( @{$results} ) {
 		given ($tbl_key) {
 			when ('ifaces') {

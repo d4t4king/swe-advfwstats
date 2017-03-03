@@ -8,6 +8,15 @@ use 5.010001;
 use strict;
 use warnings;
 use Exporter;
+
+my $arch = `/bin/uname -m`;
+chomp($arch);
+
+#if ($arch eq "x86_64") {
+#	use lib "/var/smoothwall/mods/advfwstats/usr/lib/perl5/site_perl/5.14.4/x86_64-linux-thread-multi";
+#} else {
+#	use lib "/var/smoothwall/mods/advfwstats/usr/lib/perl5/site_perl/5.14.4/1686-linux-thread-multi";
+#}
 use DBI;
 
 require Exporter;
