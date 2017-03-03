@@ -274,7 +274,7 @@ foreach my $filter ( sort keys %filters ) {
 	}
 }
 # get country data for IPs
-my $gip = Geo::IP::PurePerl->new('/usr/share/GeoIP/GeoLiteCity.dat', GEOIP_MEMORY_CACHE);
+my $gip = Geo::IP::PurePerl->new('/usr/share/GeoIP/GeoIP.dat', GEOIP_MEMORY_CACHE);
 
 # sources
 print "Inserting source data....\n" if ($verbose);
