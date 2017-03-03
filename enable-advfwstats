@@ -32,6 +32,8 @@ if ($ans =~ /^[Yy](?:es)?$/) {
 			# greb the geoip db
 			system("/usr/bin/wget -O /usr/share/GeoIP/GeoIP.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
 			system("/usr/bin/gzip -d /usr/share/GeoIP/GeoIP.dat.gz");
+			system("/usr/bin/wget -O /usr/share/GeoIP/GeoLiteCity.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz");
+			system("/usr/bin/gzip -d /usr/share/GeoIP/GeoLiteCity.dat.gz");
 			# change directories and create the symlink
 			chdir("/var/smoothwall/mods/");
 			system("/bin/ln -snf ../mods-available/advfwstats advfwstats");
@@ -44,7 +46,7 @@ available on your system, this could take a very long time.....as long as
 24 hours or more if you have a lot of data/logs to parse.  Nothing will 
 show in the stats page until the initialization is complete.
 END
-			system("/bin/bash bin/fwstats_initialize");
+			system("/bin/bash bin/advfwstats_initialize");
 		}
 		when ("/var/smoothwall/mods-available/advfwstats") {
 			print "In mod home...\n";
