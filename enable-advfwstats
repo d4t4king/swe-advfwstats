@@ -29,6 +29,9 @@ if ($ans =~ /^[Yy](?:es)?$/) {
 			system("/bin/cp -rf * /var/smoothwall/mods-available/advfwstats/");
 			# install the modules
 			system("/bin/bash install-mods.sh");
+			# greb the geoip db
+			system("/usr/bin/wget -O /usr/share/GeoIP/GeoIP.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
+			system("/usr/bin/gzip -d /usr/share/GeoIP/GeoIP.dat.gz");
 			# change directories and create the symlink
 			chdir("/var/smoothwall/mods/");
 			system("/bin/ln -snf ../mods-available/advfwstats advfwstats");
@@ -47,6 +50,9 @@ END
 			print "In mod home...\n";
 			# install the modules
 			system("/bin/bash install-mods.sh");
+			# greb the geoip db
+			system("/usr/bin/wget -O /usr/share/GeoIP/GeoIP.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
+			system("/usr/bin/gzip -d /usr/share/GeoIP/GeoIP.dat.gz");
 			# change directories and create the symlink
 			chdir("/var/smoothwall/mods/");
 			system("/bin/ln -snf ../mods-available/advfwstats advfwstats");
