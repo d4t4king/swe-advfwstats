@@ -24,9 +24,9 @@ if ($ans =~ /^[Yy](?:es)?$/) {
 			print colored("In /tmp/...\n", "bold cyan");
 			# create the directory(-ies)
 			system("/bin/mkdir -p /var/smoothwall/mods-available") unless ( -d "/var/smoothwall/mods-available" );
-			system("/bin/mkdir /var/smoothwall/mods-availeble/advfwstats");
+			system("/bin/mkdir /var/smoothwall/mods-available/advfwstats");
 			# copy all of the stuff to the mod dir
-			system("/bin/cp -rf * /var/smoothwall/mods-available/advfwstats/");
+			system("/bin/cp -rvf * /var/smoothwall/mods-available/advfwstats/");
 			# install the modules
 			system("/bin/bash install-mods.sh");
 			# greb the geoip db
