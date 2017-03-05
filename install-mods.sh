@@ -148,5 +148,15 @@ if [ ! $? == 0 ]; then
 	make && make install
 fi
 cd
+perl -mJSON -e ';' > /dev/null 2>&1
+if [ ! $? == 0 ]; then
+	wget http://search.cpan.org/CPAN/authors/id/M/MA/MAKAMAKA/JSON-2.90.tar.gz
+	tar xvf JSON-2.90.tar.gz
+	cd JSON-2.90
+	perl Makefile.PL
+	make && make install
+fi
+cd
 
-rm -rf Digest* Net* Geo-IP* Sub* Carp* Bit* Date* Config* Mail* MIME* DBI* DBD*
+
+rm -rf Digest* Net* Geo-IP* Sub* Carp* Bit* Date* Config* Mail* MIME* DBI* DBD* JSON*
