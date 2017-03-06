@@ -26,14 +26,16 @@ my (%src_struct, %dst_struct);
 
 my $db = SQL::Utils->new("sqlite3", {'db_filename'=>"/var/smoothwall/mods/advfwstats/var/db/fwstats.db"});
 my $sql = "SELECT ip_addr FROM sources GROUP BY ip_addr ORDER BY SUM(hitcount) DESC LIMIT 5;";
-@src_toptalkers = $db->execute_multi_row_query($sql);
+@src_toptalkers = $db->execute_single_field_query($sql);
 
+my (%datetimes);
 foreach my $tt ( @src_toptalkers ) {
-	$sql = "SELECT datetime,hitcount FROM sources WHERE ip_addr='$tt' ORDER BY datetime LIMIT 10;";
-	my @rows = $db->execute_multi_row_query($sql);
+	$sql = "SELECT datetime,hitcount FROM sources WHERE ip_addr='$tt' ORDER BY datetime DESC LIMIT 10;";
+	my @rows = $db->execute_multi_field_query($sql);
 	foreach my $row ( @rows ) {
-		my ($dt,$hc) = split(/|/, $row);
-		$src_struct{$tt}{$dt} = $hc;
+		my ($dt,$hc) = split(/\|/, $row);
+		$datetimes{$dt}++;
+		$src_struct{$dt}{$tt} = $hc;
 	}
 }
 
@@ -48,27 +50,38 @@ foreach my $tt ( @src_toptalkers ) {
 print <<EOS;
 		<script type="text/javascript" src="https://www.google.com/jsapi"></script>
 		<script type="text/javascript">
-			google.load('visualization', '1.1', {packages: ['line']});
-			google.setOnLoadCallback(drawChart);
+			google.charts.load('current', {'packages':['line']});
+			google.charts.setOnLoadCallback(drawChart);
 
 			function drawChart() {
 				var data = new google.visualization.arrayToDataTable([
-					['Date',
 EOS
-	
+no warnings;
+print "\t\t\t\t\t['Date','".join("','", @src_toptalkers)."'],\n";
+foreach my $dt ( sort keys %datetimes ) {
+	my ($y,$m,$d,$H,$M,$S) = Time_to_Date($dt);
+	$m--;
+	if (length($m) == 1) { $m = "0$m"; }
+	if (length($d) == 1) { $d = "0$d"; }
+	if (length($H) == 1) { $H = "0$H"; }
+	if (length($M) == 1) { $M = "0$M"; }
+	if (length($S) == 1) { $S = "0$S"; }
+	print "\t\t\t\t\t[new Date($y,$m,$d,$H,$M,$S,000),";
+	my $count = 0;
 	foreach my $tt ( @src_toptalkers ) {
-		print "\t\t\t\tdata.addColumn('number', '$tt');\n";
+		if (!defined($src_struct{$dt}{$tt})) {
+			$src_struct{$dt}{$tt} = 0;
+		}
+		if ($count == 4) {
+			print "$src_struct{$dt}{$tt}";
+		} else {
+			print "$src_struct{$dt}{$tt},";
+		}
+		$count++;
 	}
-#data.addColumn('number', 'Hits');
-	
-print <<EOS;
-				data.addRows([
-EOS
-foreach my $tt ( keys %src_struct ) {
-	foreach my $dt ( keys %{$src_struct{$tt}} ) {
-		my ($y,$m,$d,$H,$M,$S) = Time_to_Date($dt);
-	}
+	print "],\n";
 }
+use warnings;
 print <<EOS;
 				]);
 
