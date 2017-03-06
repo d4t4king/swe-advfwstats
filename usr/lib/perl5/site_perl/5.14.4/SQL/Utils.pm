@@ -88,22 +88,7 @@ sub execute_non_query {
 	return $rtv;
 }
 
-sub execute_single_row_query {
-	my $self = shift;
-	my $sql = shift;
-	my ($db, $results);
-	if ($self->{'rdbms'} eq 'sqlite3') {
-		$db = DBI->connect("dbi:$db_types{$self->{'rdbms'}}:$self->{'db_filename'}", "", "") or die "Can't connect to database: $DBI::errstr";
-	}
-	my $sth = $db->prepare($sql) or die "Can't prepare statement: $DBI::errstr";
-	while (my $row = $sth->fetchrow_hashref()) {
-		#print Dumper($row);
-		$results = $row;
-	}
-	return $results;
-}
-
-sub execute_multi_row_query {
+sub execute_single_field_query {
 	my $self = shift;
 	my $sql = shift;
 	my ($db);
@@ -112,9 +97,26 @@ sub execute_multi_row_query {
 		$db = DBI->connect("dbi:$db_types{$self->{'rdbms'}}:$self->{'db_filename'}", "", "") or die "Can't connect to database: $DBI::errstr";
 	}
 	my $sth = $db->prepare($sql) or die "Can't prepare statement: $DBI::errstr";
-	while (my $row = $sth->fetchrow_hashref()) {
-		print Dumper($row);
-		push @results, $row;
+	my $rtv = $sth->execute or die "Can't execute statement: $DBI::errstr";
+	while (my $row = $sth->fetchrow_arrayref()) {
+		push @results, $row->[0];
+	}
+	return @results;
+}
+
+sub execute_multi_field_query {
+	my $self = shift;
+	my $sql = shift;
+	my ($db);
+	my (@results);
+	if ($self->{'rdbms'} eq 'sqlite3') {
+		$db = DBI->connect("dbi:$db_types{$self->{'rdbms'}}:$self->{'db_filename'}", "", "") or die "Can't connect to database: $DBI::errstr";
+	}
+	my $sth = $db->prepare($sql) or die "Can't prepare statement: $DBI::errstr";
+	my $rtv = $sth->execute or die "Can't execute statement: $DBI::errstr";
+	while (my $row = $sth->fetchrow_arrayref()) {
+		my $line = join("|", @{$row});
+		push @results, $line;
 	}
 	return @results;
 }
