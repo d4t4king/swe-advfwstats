@@ -75,6 +75,23 @@ my $data = decode_json($json);
 
 # Extra HTML head stuff
 my $refresh = '';
+
+if (( ! -e "$swroot/mods/advfwstats/var/db/fwstats.json" ) or ( -z "$swroot/mods/advfwstats/var/db/fwstats.json")) {
+	$refresh = "<meta http-equiv=\"refresh\" content=\"30\" />\n";
+	&openpage($tf{'afws_json_not_found'});
+	&openbigbox('100%', 'LEFT');
+	&alertbox($errormessage);
+	&openbox($tr{'afws_json_now_found'});
+	print <<END;
+<div><h3>JSON file not found or zero bytes.  Check the database and/or the cron job script.</h3></div>
+END
+	&closebox();
+	&alertbox('add','add');
+	&closebigbox();
+	&closepage();
+	exit 0;
+}
+
 &openpage($tr{'afws_advanced_stats'}, 1, $refresh, 'about');
 
 &openbigbox('100%', 'LEFT');
