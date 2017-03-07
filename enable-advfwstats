@@ -34,11 +34,14 @@ if ($ans =~ /^[Yy](?:es)?$/) {
 				system("/bin/bash install-mods.sh");
 			} else {
 				# likely on a SWE without dev packages
+				print colored("make not found.  Downloading and extracting static perl modules.\n", "bold yellow");
 				my $arch = `/bin/uname -m`;
 				chomp($arch);
 				chdir("/tmp");
 				system("/usr/bin/wget http://smoothwall-info.net/downloads/perl-mod-files-$arch.tar.xz");
+				print colored("Extracting....\n", "bold cyan");
 				system("/usr/bin/tar xf perl-mod-files-$arch.tar.xz -C /");
+				print colored("done.\n", "bold cyan");
 			}
 			# greb the geoip db
 			system("/usr/bin/wget -O /usr/share/GeoIP/GeoIP.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
@@ -49,6 +52,7 @@ if ($ans =~ /^[Yy](?:es)?$/) {
 			chdir("/var/smoothwall/mods/");
 			system("/bin/ln -snf ../mods-available/advfwstats advfwstats");
 			chdir("advfwstats");
+			system("/bin/mkdir -p var/db");
 			# start the db initialization in the background
 			print color("bold cyan");
 			print <<END;
@@ -62,17 +66,20 @@ END
 		when ("/var/smoothwall/mods-available/advfwstats") {
 			print "In mod home...\n";
 			# install the modules
-			my $dev = system("/bin/make --help > /dev/null 2>&1");
+			my $dev = system("/usr/bin/make --help > /dev/null 2>&1");
 			chomp($dev);
 			if ($dev == 0) {
 				system("/bin/bash install-mods.sh");
 			} else {
 				# likely on a SWE without dev packages
+				print colored("make not found.  Downloading and extracting static perl modules.\n", "bold yellow");
 				my $arch = `/bin/uname -m`;
 				chomp($arch);
 				chdir("/tmp");
 				system("/usr/bin/wget http://smoothwall-info.net/downloads/perl-mod-files-$arch.tar.xz");
+				print colored("Extracting....\n", "bold cyan");
 				system("/usr/bin/tar xf perl-mod-files-$arch.tar.xz -C /");
+				print colored("done.\n", "bold cyan");
 			}
 			# greb the geoip db
 			system("/usr/bin/wget -O /usr/share/GeoIP/GeoIP.dat.gz http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
@@ -81,6 +88,7 @@ END
 			chdir("/var/smoothwall/mods/");
 			system("/bin/ln -snf ../mods-available/advfwstats advfwstats");
 			chdir("advfwstats");
+			system("/bin/mkdir -p var/db");
 			# start the db initialization in the background
 			print color("bold cyan");
 			print <<END;
@@ -89,7 +97,7 @@ available on your system, this could take a very long time.....as long as
 24 hours or more if you have a lot of data/logs to parse.  Nothing will 
 show in the stats page until the initialization is complete.
 END
-			system("/bin/bash bin/fwstats_initialize");
+			system("/bin/bash bin/advfwstats_initialize");
 		}
 		default { die colored("Unrecognized install from directory! ($cwd)", "bold red"); }
 	}

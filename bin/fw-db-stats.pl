@@ -18,6 +18,8 @@ my ($dbfile, $depth, $help, $onetime, $verbose);
 our ($crontab);
 
 my $__depth__ = 10;
+my $hostname = `/usr/bin/hostname`;
+chomp($hostname);
 
 GetOptions( 
 	'onetime'		=>	\$onetime,
@@ -83,22 +85,28 @@ if ($verbose) { print "Setting up the tables in the database file ($dbfile)....\
 my $sql_utils_obj = SQL::Utils->new('sqlite3', {'db_filename' => $dbfile});
 foreach my $sql ( @create_tables_sql ) {
 	#print "$sql\n";
+	print join(" ", (split(" ", $sql))[0..5]).": ";
 	my $rtv = $sql_utils_obj->execute_non_query($sql);
-	print STDERR "RTV: $rtv\n" if ($verbose);
+	print "RTV: $rtv\n" if ($verbose);
 }
 
+# set autoflush so we get output immediately
+if ($verbose) { local $| = 1; }
 #
 ### Grab data from tables (if exist)
 #
 if ($verbose) { print "Loading existing database data (filters)....\n"; }
 my (%db_countries_cc, %db_countries_name, %db_filters, %db_ifaces, %db_sources, %db_dests, %db_dports);
 my $sql = "SELECT id,cc,name FROM countries";
-my $results = $sql_utils_obj->execute_multi_row_query($sql);
-if ($results > 0) {
-	foreach my $result ( @{$results} ) {
-		$db_countries_cc{$result->{'cc'}} = $result->{'id'};
-		$db_countries_name{$result->{'name'}} = $result->{'id'};
+my @results = $sql_utils_obj->execute_multi_field_query($sql);
+if (scalar(@results) > 0) {
+	foreach my $result ( @results ) {
+		my ($id,$cc,$country) = split(/\|/, $result);
+		$db_countries_cc{$cc} = $id;
+		$db_countries_name{$country} = $id;
 	}
+} else {
+	if ($verbose) { print colored("Got 0 results from pre-existing countries query.\n", "yellow"); }
 }
 
 my %existing_data_sql = (
@@ -110,24 +118,32 @@ my %existing_data_sql = (
 );
 
 foreach my $tbl_key ( sort keys %existing_data_sql ) {
-	$results = $sql_utils_obj->execute_multi_row_query($existing_data_sql{$tbl_key});
-	last if ($results == 0);
-	foreach my $result ( @{$results} ) {
+	@results = $sql_utils_obj->execute_multi_field_query($existing_data_sql{$tbl_key});
+	if (scalar(@results) == 0) {
+		if ($verbose) { print colored("Got 0 results for pre-existing '$tbl_key' query\n", "yellow"); }
+		next;
+	}
+	foreach my $result ( @results ) {
 		given ($tbl_key) {
 			when ('ifaces') {
-				$db_ifaces{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
+				my ($name,$dt,$hc) = split(/\|/, $result);
+				$db_ifaces{$name}{$dt} = $hc;
 			}
 			when ('filters') {
-				$db_filters{$result->{'name'}}{$result->{'datetime'}} = $result->{'hitcount'};
+				my ($name,$dt,$hc) = split(/\|/, $result);
+				$db_filters{$name}{$dt} = $hc;
 			}
 			when ('sources') {
-				$db_sources{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
+				my ($ip,$dt,$hc) = split(/\|/, $result);
+				$db_sources{$ip}{$dt} = $hc;
 			}
 			when ('dests') {
-				$db_dests{$result->{'ip_addr'}}{$result->{'datetime'}} = $result->{'hitcount'};
+				my ($ip,$dt,$hc) = split(/\|/, $result);
+				$db_dests{$ip}{$dt} = $hc;
 			}
 			when ('dest_ports') {
-				$db_dports{$result->{'port_num'}}{$result->{'datetime'}} = $result->{'hitcount'};
+				my ($pn,$dt,$hc) = split(/\|/, $result);
+				$db_dports{$pn}{$dt} = $hc;
 			}
 			default { 
 				# we should never get here
@@ -146,6 +162,7 @@ my @lines;
 if ($onetime) {
 	if ($verbose) { print "_onetime_ flag set.  Loading historical data...\n"; }
 	my @files = `/bin/ls -1 /var/log/messages*`;
+	print colored("Got ".scalar(@files)." log files for historical data.\n", "cyan") if ($verbose);
 	foreach my $file (reverse @files) {
 		chomp($file);
 		my $ext = (split(/\./, $file))[-1];
@@ -153,7 +170,7 @@ if ($onetime) {
 			my $z = new IO::Uncompress::Gunzip $file
 				or die "gunzip failed $GunzipError\n";
 			while (my $line = $z->getline()) {
-				next unless ($line =~ /swe\s+kernel\:/);
+				next unless ($line =~ /$hostname\s+kernel\:/);
 				chomp($line);
 				push @lines, $line;
 			}
@@ -290,10 +307,11 @@ foreach my $src ( sort keys %sources ) {
 			$cc_ref->{'country_name'} =~ s/\'/\%27/g;
 			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
 			# "refresh" the lookup hashes with the added values
-			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
-			foreach my $result ( @{$results} ) {
-				$db_countries_cc{$results->{'cc'}} = $result->{'id'};
-				$db_countries_name{$result->{'name'}} = $result->{'id'};
+			@results = $sql_utils_obj->execute_multi_field_query("SELECT id,cc,name FROM countries");
+			foreach my $result ( @results ) {
+				my ($id,$cc,$country) = split(/\|/, $result);
+				$db_countries_cc{$cc} = $id;
+				$db_countries_name{$country} = $id;
 			}
 		}
 		$sql_utils_obj->execute_non_query("INSERT INTO sources (ip_addr,datetime,hitcount) VALUES ('$src', '$src_date', '$sources{$src}{$src_date}');");
@@ -311,10 +329,11 @@ foreach my $dst ( sort keys %dests ) {
 			$cc_ref->{'country_name'} =~ s/\'/\%27/g;
 			$sql_utils_obj->execute_non_query("INSERT INTO countries (cc,cc3,name) VALUES ('$cc_ref->{'country_code'}', '$cc_ref->{'country_code3'}', '$cc_ref->{'country_name'}')");
 			# "refresh" the lookup hashes with the added values
-			$results = $sql_utils_obj->execute_multi_row_query("SELECT id,cc,name FROM countries");
-			foreach my $result ( @{$results} ) {
-				$db_countries_cc{$result->{'cc'}} = $result->{'id'};
-				$db_countries_name{$result->{'name'}} = $result->{'id'};
+			@results = $sql_utils_obj->execute_multi_field_query("SELECT id,cc,name FROM countries");
+			foreach my $result ( @results ) {
+				my ($id,$cc,$country) = split(/\|/, $result);
+				$db_countries_cc{$cc} = $id;
+				$db_countries_name{$country} = $id;
 			}
 		}
 		$sql_utils_obj->execute_non_query("INSERT INTO destinations (ip_addr,datetime,hitcount) VALUES ('$dst', '$dst_date', '$dests{$dst}{$dst_date}');");
