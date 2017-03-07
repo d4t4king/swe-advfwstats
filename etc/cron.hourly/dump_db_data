@@ -7,6 +7,16 @@ use Term::ANSIColor;
 use DBI;
 use JSON;
 
+my $logger = '/usr/bin/logger -t "afws_data_dump" --id';
+sub logit {
+	my $message = shift;
+	my $errs = system("$logger '$message'");
+	if ($errs == 0) { return 0; }
+	else { return 1; }
+}
+
+my $err = &logit("Starting the hourly data dump for advanced fw stats mod.\n");
+if ($err) { system("/usr/bin/logger -t \"afws_data_dump\" --id \"There was an error in the log subroutine.  Quitting.\"; "); exit 1; }
 #my (%filters, %iface_pkts, %sources, %dests, %dports);
 my %data;
 my $db = DBI->connect("dbi:SQLite:/var/smoothwall/mods/advfwstats/var/db/fwstats.db", "", "");
@@ -49,3 +59,6 @@ open OUT, ">/var/smoothwall/mods/advfwstats/var/db/fwstats.json" or die "Couldn'
 print OUT encode_json(\%data);
 close OUT or die "Couldn't close json file: $! ";
 print "\n";
+
+&logit("afws data dump complete.");
+
