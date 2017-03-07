@@ -78,7 +78,7 @@ my $refresh = '';
 
 if (( ! -e "$swroot/mods/advfwstats/var/db/fwstats.json" ) or ( -z "$swroot/mods/advfwstats/var/db/fwstats.json")) {
 	$refresh = "<meta http-equiv=\"refresh\" content=\"30\" />\n";
-	&openpage($tf{'afws_json_not_found'});
+	&openpage($tr{'afws_json_not_found'});
 	&openbigbox('100%', 'LEFT');
 	&alertbox($errormessage);
 	&openbox($tr{'afws_json_now_found'});
